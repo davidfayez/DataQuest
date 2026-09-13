@@ -1,0 +1,30 @@
+{
+  "name": "@dv/i18n",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./locales/*": "./src/locales/*"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "check:locales": "node scripts/check-locales.mjs"
+  },
+  "dependencies": {
+    "i18next-browser-languagedetector": "^8.0.2"
+  },
+  "peerDependencies": {
+    "i18next": "^24.2.0",
+    "react": "^19.0.0",
+    "react-i18next": "^15.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.2",
+    "i18next": "^24.2.0",
+    "react-i18next": "^15.2.0",
+    "typescript": "^5.7.2"
+  }
+}
