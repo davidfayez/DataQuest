@@ -1,0 +1,45 @@
+import { createContext, useContext, type ReactNode } from 'react';
+import bundledLogoUrl from '../assets/logo.jpeg';
+
+/**
+ * The logo an administrator uploaded, or null to use the mark bundled with the build.
+ *
+ * A context rather than a prop on every <Logo>: the mark appears in headers, footers and sign-in
+ * screens across both apps, and threading a URL through all of them would mean every caller
+ * knowing where branding comes from. This package stays presentational — each app fetches its own
+ * branding and provides the resolved URL once at its root.
+ */
+const LogoSourceContext = createContext<string | null>(null);
+
+export function LogoSourceProvider({
+  src,
+  children,
+}: {
+  src: string | null;
+  children: ReactNode;
+}) {
+  return <LogoSourceContext.Provider value={src}>{children}</LogoSourceContext.Provider>;
+}
+
+/**
+ * Brand mark. Rendered as a circle so artwork with a dark background reads as an intentional disc
+ * on both light and dark surfaces.
+ *
+ * Falls back to the bundled seal whenever no logo has been uploaded — so the header is never
+ * empty, and removing the upload restores the original artwork rather than leaving a gap.
+ */
+export function Logo({ size = 32 }: { size?: number }) {
+  const uploaded = useContext(LogoSourceContext);
+
+  return (
+    <img
+      src={uploaded ?? bundledLogoUrl}
+      width={size}
+      height={size}
+      alt=""
+      aria-hidden
+      className="shrink-0 rounded-full object-cover"
+      style={{ width: size, height: size }}
+    />
+  );
+}

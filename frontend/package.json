@@ -1,0 +1,33 @@
+{
+  "name": "data-verification-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"./apps/*\" dev",
+    "dev:web": "pnpm --filter @dv/web dev",
+    "dev:admin": "pnpm --filter @dv/admin dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,json,md,css}\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@fontsource-variable/ibm-plex-sans": "^5.2.8",
+    "@fontsource/ibm-plex-mono": "^5.2.7",
+    "@fontsource/ibm-plex-sans-arabic": "^5.2.9",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.16",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.0"
+  }
+}

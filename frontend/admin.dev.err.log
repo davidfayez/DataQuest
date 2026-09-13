@@ -1,0 +1,200 @@
+$ vite "--port" "5184"
+12:43:50 PM [vite] http proxy error: /api/v1/admin/content/coverage
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+12:43:50 PM [vite] http proxy error: /api/v1/admin/lookups/countries?page=1&pageSize=300&isActive=true
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+5:12:05 PM [vite] http proxy error: /api/v1/admin/clients?page=1&pageSize=25
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+5:14:00 PM [vite] http proxy error: /api/v1/content/branding
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+6:14:47 PM [vite] http proxy error: /api/v1/content/branding
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+6:15:02 PM [vite] http proxy error: /api/v1/content/branding
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+6:16:04 PM [vite] http proxy error: /api/v1/admin/clients?page=1&pageSize=25
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+6:16:04 PM [vite] http proxy error: /api/v1/content/branding
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+7:40:35 PM [vite] http proxy error: /api/v1/admin/settings/password-reset-validity
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+7:40:35 PM [vite] http proxy error: /api/v1/admin/settings/password-resets?page=1&pageSize=25&search=
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+7:40:57 PM [vite] http proxy error: /api/v1/content/branding
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+7:42:12 PM [vite] Internal server error: E:\Data Verification\DataVerification\frontend\apps\admin\src\pages\settings\PasswordResetsPage.tsx: Missing semicolon. (337:7)
+
+  335 |       // A browser that refuses clipboard access is not worth an error dialog; the values are all
+  336 |       // on screen to be selected by hand.
+> 337 | without      setCopied(false);
+      |        ^
+  338 |     }
+  339 |   };
+  340 |
+  Plugin: vite:react-babel
+  File: E:/Data Verification/DataVerification/frontend/apps/admin/src/pages/settings/PasswordResetsPage.tsx:337:7
+  335|        // A browser that refuses clipboard access is not worth an error dialog; the values are all
+  336|        // on screen to be selected by hand.
+  337|  without      setCopied(false);
+     |         ^
+  338|      }
+  339|    };
+      at constructor (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:365:19)
+      at TypeScriptParserMixin.raise (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:6616:19)
+      at TypeScriptParserMixin.semicolon (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:6912:10)
+      at TypeScriptParserMixin.parseExpressionStatement (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:13302:10)
+      at TypeScriptParserMixin.parseStatementContent (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:12916:19)
+      at TypeScriptParserMixin.parseStatementContent (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:9525:18)
+      at TypeScriptParserMixin.parseStatementLike (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:12784:17)
+      at TypeScriptParserMixin.parseStatementListItem (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:12764:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:13333:61)
+      at TypeScriptParserMixin.parseBlockBody (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:13326:10)
+      at TypeScriptParserMixin.parseBlock (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:13314:10)
+      at E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:13235:72
+      at TypeScriptParserMixin.withSmartMixTopicForbiddingContext (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:12420:14)
+      at TypeScriptParserMixin.parseTryStatement (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:13235:26)
+      at TypeScriptParserMixin.parseStatementContent (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:12821:21)
+      at TypeScriptParserMixin.parseStatementContent (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:9525:18)
+      at TypeScriptParserMixin.parseStatementLike (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:12784:17)
+      at TypeScriptParserMixin.parseStatementListItem (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:12764:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:13333:61)
+      at TypeScriptParserMixin.parseBlockBody (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:13326:10)
+      at TypeScriptParserMixin.parseBlock (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:13314:10)
+      at TypeScriptParserMixin.parseFunctionBody (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:12117:24)
+      at TypeScriptParserMixin.parseArrowExpression (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:12092:10)
+      at TypeScriptParserMixin.parseAsyncArrowFromCallExpression (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:11281:10)
+      at TypeScriptParserMixin.parseAsyncArrowFromCallExpression (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:9783:18)
+      at TypeScriptParserMixin.parseCoverCallAndAsyncArrowHead (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:11211:27)
+      at TypeScriptParserMixin.parseSubscript (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:11137:19)
+      at TypeScriptParserMixin.parseSubscript (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:9289:18)
+      at TypeScriptParserMixin.parseSubscripts (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:11111:19)
+      at TypeScriptParserMixin.parseExprSubscripts (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:11102:17)
+      at TypeScriptParserMixin.parseUpdate (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:11083:21)
+      at TypeScriptParserMixin.parseMaybeUnary (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:11063:23)
+      at TypeScriptParserMixin.parseMaybeUnary (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:9854:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:10916:61)
+      at TypeScriptParserMixin.parseExprOps (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:10921:23)
+      at TypeScriptParserMixin.parseMaybeConditional (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:10898:23)
+      at TypeScriptParserMixin.parseMaybeAssign (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:10848:21)
+      at TypeScriptParserMixin.parseMaybeAssign (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:9803:20)
+      at E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:10817:39
+      at TypeScriptParserMixin.allowInAnd (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:12438:16)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:10817:17)
+      at TypeScriptParserMixin.parseVar (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:13401:91)
+      at TypeScriptParserMixin.parseVarStatement (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:13247:10)
+      at TypeScriptParserMixin.parseVarStatement (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:9425:31)
+      at TypeScriptParserMixin.parseStatementContent (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:12868:23)
+      at TypeScriptParserMixin.parseStatementContent (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:9525:18)
+      at TypeScriptParserMixin.parseStatementLike (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:12784:17)
+      at TypeScriptParserMixin.parseStatementListItem (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:12764:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:13333:61)
+      at TypeScriptParserMixin.parseBlockBody (E:\Data Verification\DataVerification\frontend\node_modules\.pnpm\@babel+parser@7.29.7\node_modules\@babel\parser\lib\index.js:13326:10)
+7:42:17 PM [vite] http proxy error: /api/v1/admin/settings/password-reset-validity
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+7:42:17 PM [vite] http proxy error: /api/v1/admin/settings/password-resets?page=1&pageSize=25
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+7:42:18 PM [vite] http proxy error: /api/v1/admin/settings/password-resets?page=1&pageSize=25&search=
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+7:53:50 PM [vite] http proxy error: /api/v1/admin/settings/password-reset-validity
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+7:53:50 PM [vite] http proxy error: /api/v1/admin/settings/password-resets?page=1&pageSize=25&search=
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+8:51:33 PM [vite] http proxy error: /api/v1/admin/settings/password-reset-validity
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+8:51:33 PM [vite] http proxy error: /api/v1/content/branding
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+8:51:33 PM [vite] http proxy error: /api/v1/admin/settings/password-resets?page=1&pageSize=25&search=
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+1:50:22 AM [vite] http proxy error: /api/v1/admin/lookups/service-types?page=1&pageSize=25
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+1:50:22 AM [vite] http proxy error: /api/v1/admin/lookups/authorities?page=1&pageSize=200&isActive=true
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+1:50:22 AM [vite] http proxy error: /api/v1/admin/lookups/sub-transaction-types?page=1&pageSize=200&isActive=true
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+1:50:22 AM [vite] http proxy error: /api/v1/admin/lookups/currencies?page=1&pageSize=200&isActive=true
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+1:50:22 AM [vite] http proxy error: /api/v1/admin/lookups/transaction-types?page=1&pageSize=200&isActive=true
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+1:50:49 AM [vite] http proxy error: /api/v1/admin/lookups/service-types?page=1&pageSize=25
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+1:52:25 AM [vite] http proxy error: /api/v1/content/branding
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+12:57:24 PM [vite] http proxy error: /api/v1/admin/lookups/service-types?page=1&pageSize=25
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+12:57:24 PM [vite] http proxy error: /api/v1/admin/lookups/authorities?page=1&pageSize=200&isActive=true
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+12:57:24 PM [vite] http proxy error: /api/v1/admin/lookups/transaction-types?page=1&pageSize=200&isActive=true
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+12:57:24 PM [vite] http proxy error: /api/v1/admin/lookups/currencies?page=1&pageSize=200&isActive=true
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+12:57:24 PM [vite] http proxy error: /api/v1/admin/lookups/sub-transaction-types?page=1&pageSize=200&isActive=true
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+12:57:52 PM [vite] http proxy error: /api/v1/admin/lookups/service-types?page=1&pageSize=25
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+1:00:02 PM [vite] http proxy error: /api/v1/content/branding
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)

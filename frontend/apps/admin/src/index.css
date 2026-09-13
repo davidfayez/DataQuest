@@ -1,0 +1,5 @@
+@import '@dv/ui/styles.css';
+
+/* Vite needs to know which files to scan for utility classes across the workspace. */
+@source '../src';
+@source '../../../packages/ui/src';

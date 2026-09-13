@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DataVerification.Infrastructure</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="MailKit" />
+    <PackageReference Include="SendGrid" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DataVerification.Application\DataVerification.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The world countries + currencies seed, embedded so it travels with the assembly and is
+         read regardless of the working directory. -->
+    <EmbeddedResource Include="Persistence/SeedData/world-lookups.json">
+      <LogicalName>world-lookups.json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Persistence/SeedData/egypt-banks.json">
+      <LogicalName>egypt-banks.json</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

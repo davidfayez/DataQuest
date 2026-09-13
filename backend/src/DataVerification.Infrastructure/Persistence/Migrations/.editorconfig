@@ -1,0 +1,8 @@
+# EF Core generates the files in this folder. Holding them to the solution's hand-written code
+# style produces noise on every scaffold, so analysis is relaxed here only.
+[*.cs]
+generated_code = true
+
+dotnet_diagnostic.IDE0161.severity = none
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.CA1062.severity = none

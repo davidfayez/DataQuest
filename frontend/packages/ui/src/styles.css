@@ -1,0 +1,199 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens for both applications — the "paper & ink" system from the
+ * original prototype (deployed on Vercel).
+ *
+ * Warm paper ground, deep ink neutrals, and a single emerald brand accent.
+ * Display headings are set in Fraunces (serif), body in Inter; Arabic and
+ * Urdu fall back to IBM Plex Sans Arabic.
+ *
+ * Semantic aliases (primary, foreground, border…) are mapped onto the ink /
+ * brand scales so components can use either vocabulary.
+ */
+
+@theme {
+  /* --- fonts ----------------------------------------------------------- */
+  --font-sans: 'Inter', 'IBM Plex Sans Arabic', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Fraunces', 'IBM Plex Sans Arabic', ui-serif, Georgia, serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1.45;
+
+  /* --- ink (neutrals) --------------------------------------------------- */
+  --color-ink-50: #f4f6f8;
+  --color-ink-100: #e6eaef;
+  --color-ink-200: #c8d1dc;
+  --color-ink-300: #a3b1c2;
+  --color-ink-400: #7a8ca3;
+  --color-ink-500: #5b6e87;
+  --color-ink-600: #47576c;
+  --color-ink-700: #3a4757;
+  --color-ink-800: #2b3542;
+  --color-ink-900: #1c232d;
+  --color-ink-950: #10151c;
+
+  /* --- brand (emerald) --------------------------------------------------- */
+  --color-brand-50: #ecfdf6;
+  --color-brand-100: #d1fae8;
+  --color-brand-200: #a7f3d5;
+  --color-brand-300: #6ee7bd;
+  --color-brand-400: #34d39e;
+  --color-brand-500: #10b981;
+  --color-brand-600: #059666;
+  --color-brand-700: #047852;
+  --color-brand-800: #065f44;
+  --color-brand-900: #064e38;
+
+  /* --- ground ------------------------------------------------------------ */
+  --color-paper: #faf9f6;
+  --color-cream: #f3f1ea;
+
+  /* --- semantic aliases --------------------------------------------------- */
+  --color-canvas: #faf9f6;
+  --color-background: #ffffff;
+  --color-foreground: #1c232d;
+  --color-muted: #f4f6f8;
+  --color-muted-foreground: #5b6e87;
+  --color-subtle: #7a8ca3;
+
+  --color-primary: #059666;
+  --color-primary-hover: #047852;
+  --color-primary-foreground: #ffffff;
+  --color-primary-muted: #ecfdf6;
+  --color-primary-border: #a7f3d5;
+
+  --color-secondary: #f4f6f8;
+  --color-secondary-foreground: #2b3542;
+
+  --color-border: #e6eaef;
+  --color-border-strong: #c8d1dc;
+  --color-ring: #10b981;
+
+  /* --- semantic status ----------------------------------------------------- */
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #ffffff;
+  --color-destructive-muted: #fef2f2;
+  --color-destructive-border: #fecaca;
+
+  --color-success: #047852;
+  --color-success-muted: #ecfdf6;
+  --color-success-border: #a7f3d5;
+
+  --color-warning: #b45309;
+  --color-warning-muted: #fffbeb;
+  --color-warning-border: #fde68a;
+
+  --color-info: #0369a1;
+  --color-info-muted: #f0f9ff;
+  --color-info-border: #bae6fd;
+
+  /* --- shape & elevation ---------------------------------------------------- */
+  /* Rounded and soft: controls sit at rounded-xl, cards at rounded-2xl. The
+   * default `rounded-md` used across the apps is lifted to match. */
+  --radius: 0.75rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 0.875rem;
+
+  --shadow-soft: 0 1px 2px rgb(16 21 28 / 0.04), 0 4px 16px rgb(16 21 28 / 0.06);
+  --shadow-lift: 0 2px 4px rgb(16 21 28 / 0.06), 0 12px 32px rgb(16 21 28 / 0.10);
+  --shadow-card: 0 1px 2px rgb(16 21 28 / 0.04), 0 4px 16px rgb(16 21 28 / 0.06);
+  --shadow-raised: 0 2px 4px rgb(16 21 28 / 0.06), 0 12px 32px rgb(16 21 28 / 0.10);
+  --shadow-overlay: 0 12px 48px rgb(16 21 28 / 0.18);
+
+  /* --- motion ------------------------------------------------------------- */
+  --animate-fade-up: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 0.4s ease both;
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+/* Arabic self-hosted; Inter and Fraunces are loaded from Google Fonts in each
+ * app's index.html so the rendering matches the deployed prototype exactly. */
+@import '@fontsource/ibm-plex-sans-arabic/400.css';
+@import '@fontsource/ibm-plex-sans-arabic/500.css';
+@import '@fontsource/ibm-plex-sans-arabic/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink-900);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    font-feature-settings: 'cv02', 'cv03', 'cv04';
+  }
+
+  /* Arabic and Urdu: a dedicated face, and looser leading because the script
+   * carries taller ascenders and deeper descenders than Latin. */
+  html[lang='ar'],
+  html[lang='ur'],
+  [dir='rtl'] {
+    --font-sans: 'IBM Plex Sans Arabic', 'Inter', 'Noto Naskh Arabic', system-ui, sans-serif;
+    --font-display: 'IBM Plex Sans Arabic', 'Fraunces', ui-serif, Georgia, serif;
+    line-height: 1.85;
+  }
+
+  h1, h2, h3, h4 {
+    letter-spacing: -0.011em;
+    text-wrap: balance;
+  }
+
+  /* Reference numbers, money and dates line up in columns only if the digits
+   * share a width. */
+  th, td, time, [data-numeric] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-brand-200);
+    color: var(--color-ink-950);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-ink-200) transparent;
+  }
+}
+
+@layer components {
+  /* An application reference is an identifier people read aloud, copy into
+   * email and compare by eye — so it is set in mono with slight tracking. */
+  .reference {
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    letter-spacing: 0.02em;
+  }
+}
+
+/* Stagger helper for lists */
+.stagger > * {
+  animation: var(--animate-fade-up);
+}
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.08s; }
+.stagger > *:nth-child(3) { animation-delay: 0.14s; }
+.stagger > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger > *:nth-child(5) { animation-delay: 0.26s; }
+.stagger > *:nth-child(6) { animation-delay: 0.32s; }

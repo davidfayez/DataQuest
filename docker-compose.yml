@@ -1,0 +1,35 @@
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: dataverification-db
+    environment:
+      ACCEPT_EULA: 'Y'
+      MSSQL_SA_PASSWORD: 'Your_strong_Passw0rd'
+      MSSQL_PID: Developer
+    ports:
+      - '1433:1433'
+    volumes:
+      - dataverification-db-data:/var/opt/mssql
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" || exit 1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # Catches every outgoing email in dev; open the web UI to read the credentials mail.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: dataverification-mailpit
+    ports:
+      - '1025:1025' # SMTP
+      - '8025:8025' # Web UI
+    environment:
+      MP_MAX_MESSAGES: 500
+
+volumes:
+  dataverification-db-data:

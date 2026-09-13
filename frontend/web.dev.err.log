@@ -1,0 +1,121 @@
+$ vite "--port" "5183"
+12:43:50 PM [vite] http proxy error: /api/v1/content/landing
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+12:43:50 PM [vite] http proxy error: /api/v1/content/services
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+12:43:50 PM [vite] http proxy error: /api/v1/content/coverage
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+1:55:02 PM [vite] http proxy error: /api/v1/content/landing
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+1:55:22 PM [vite] http proxy error: /api/v1/content/landing
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+1:55:22 PM [vite] http proxy error: /api/v1/content/services
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+1:55:22 PM [vite] http proxy error: /api/v1/content/coverage
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+4:03:18 PM [vite] http proxy error: /api/v1/content/tools
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+4:03:39 PM [vite] http proxy error: /api/v1/content/social-links
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+4:03:39 PM [vite] http proxy error: /api/v1/content/footer
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+4:03:39 PM [vite] http proxy error: /api/v1/content/branding
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+6:17:03 PM [vite] http proxy error: /api/v1/content/branding
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+6:17:24 PM [vite] http proxy error: /api/v1/content/social-links
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+6:17:24 PM [vite] http proxy error: /api/v1/content/footer
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+6:17:24 PM [vite] http proxy error: /api/v1/content/branding
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+8:49:24 PM [vite] http proxy error: /api/v1/orders/me/wallet?page=1&pageSize=20
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+8:49:24 PM [vite] http proxy error: /api/v1/content/social-links
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+8:49:24 PM [vite] http proxy error: /api/v1/content/footer
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+8:49:24 PM [vite] http proxy error: /api/v1/content/branding
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+8:49:43 PM [vite] http proxy error: /api/v1/addressees
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+8:49:56 PM [vite] http proxy error: /api/v1/addressees
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+8:50:00 PM [vite] http proxy error: /api/v1/addressees
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+8:50:44 PM [vite] http proxy error: /api/v1/addressees
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+8:50:44 PM [vite] http proxy error: /api/v1/content/footer
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+8:50:44 PM [vite] http proxy error: /api/v1/content/branding
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+12:59:50 PM [vite] http proxy error: /api/v1/addressees
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+12:59:50 PM [vite] http proxy error: /api/v1/orders/me/wallet?page=1&pageSize=20
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+1:00:40 PM [vite] http proxy error: /api/v1/content/social-links
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+1:00:40 PM [vite] http proxy error: /api/v1/content/footer
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
+1:00:40 PM [vite] http proxy error: /api/v1/content/branding
+AggregateError [ECONNREFUSED]: 
+    at internalConnectMultiple (node:net:1142:49)
+    at afterConnectMultiple (node:net:1723:7)
