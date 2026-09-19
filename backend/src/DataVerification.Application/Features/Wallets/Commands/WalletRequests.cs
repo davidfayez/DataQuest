@@ -19,10 +19,12 @@ namespace DataVerification.Application.Features.Wallets.Commands;
 /// the same balance cannot also be spent on applications while an operator decides. A deposit moves
 /// nothing until it is approved — the funds do not exist yet.
 /// </remarks>
+/// <param name="CurrencyId">Which balance; the order's main currency when omitted.</param>
 public sealed record CreateWalletRequestCommand(
     WalletRequestType Type,
     decimal Amount,
-    string? Note) : IRequest<WalletRequestDto>;
+    string? Note,
+    Guid? CurrencyId = null) : IRequest<WalletRequestDto>;
 
 public sealed class CreateWalletRequestCommandValidator : AbstractValidator<CreateWalletRequestCommand>
 {
@@ -50,12 +52,14 @@ public sealed class CreateWalletRequestCommandHandler
     private readonly ICurrentUser _currentUser;
     private readonly IAuditLogger _auditLogger;
     private readonly WalletOptions _options;
+    private readonly WalletBook _wallets;
 
     public CreateWalletRequestCommandHandler(
         IApplicationDbContext db,
         ICurrentUser currentUser,
         IAuditLogger auditLogger,
-        IOptions<WalletOptions> options)
+        IOptions<WalletOptions> options,
+        WalletBook wallets)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -63,6 +67,7 @@ public sealed class CreateWalletRequestCommandHandler
         _currentUser = currentUser;
         _auditLogger = auditLogger;
         _options = options.Value;
+        _wallets = wallets;
     }
 
     public async Task<WalletRequestDto> Handle(
@@ -97,19 +102,15 @@ public sealed class CreateWalletRequestCommandHandler
         CreateWalletRequestCommand request,
         CancellationToken cancellationToken)
     {
-        var order = await _db.Orders
-            .Include(o => o.Wallet)
-            .ThenInclude(w => w!.Currency)
-            .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken)
-            ?? throw new NotFoundException("Order", orderId);
+        var wallet = await _wallets.OpenAsync(orderId, request.CurrencyId, cancellationToken);
+        var order = wallet.Order!;
 
-        var wallet = order.Wallet
-            ?? throw new ConflictException("order.wallet_missing", "This order has no wallet.");
-
-        // One decision at a time per direction: a queue of overlapping payouts is impossible to
-        // reason about, and a second top-up request usually means the first was forgotten.
+        // One decision at a time per direction and balance: a queue of overlapping payouts is
+        // impossible to reason about, and a second top-up request usually means the first was
+        // forgotten.
         var hasPending = await _db.WalletRequests.AnyAsync(
             r => r.OrderId == orderId
+                && r.WalletId == wallet.Id
                 && r.Type == request.Type
                 && r.Status == WalletRequestStatus.Pending,
             cancellationToken);
@@ -151,7 +152,7 @@ public sealed class CreateWalletRequestCommandHandler
             "WalletRequest.Created",
             "WalletRequest",
             walletRequest.Id,
-            new { orderId, request.Type, request.Amount, wallet.Balance },
+            new { orderId, request.Type, request.Amount, Currency = wallet.Currency?.Code, wallet.Balance },
             cancellationToken);
 
         return WalletRequestDto.From(walletRequest, order.OrderNumber, wallet.Currency?.Code ?? string.Empty);

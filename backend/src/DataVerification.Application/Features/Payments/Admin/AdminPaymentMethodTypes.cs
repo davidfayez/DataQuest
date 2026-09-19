@@ -4,8 +4,10 @@ using DataVerification.Application.Features.Lookups.Admin;
 using DataVerification.Domain.Entities;
 using DataVerification.Domain.Enums;
 using FluentValidation;
+using FluentValidation.Results;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using ValidationException = DataVerification.Application.Common.Exceptions.ValidationException;
 
 namespace DataVerification.Application.Features.Payments.Admin;
 
@@ -21,15 +23,19 @@ public sealed record ListPaymentMethodTypesQuery : PagedQuery, IRequest<PagedRes
 }
 
 /// <remarks>
-/// Every requirement is settable. They used to follow from <see cref="Kind"/>, which meant a new
-/// provider — numbers plus a link, say, or numbers plus a QR code and a bank name — needed a new
-/// enum value and a deployment. What a provider asks for is configuration.
+/// Every requirement is settable. They used to follow from the kind, which meant a new provider —
+/// numbers plus a link, say, or numbers plus a QR code and a bank name — needed a new enum value
+/// and a deployment. What a provider asks for is configuration.
+///
+/// The kind itself is not part of the command: a new type is a transfer, and an existing type
+/// keeps the kind it has. A <c>kind</c> sent by an older client is ignored.
 /// </remarks>
 public sealed record UpsertPaymentMethodTypeCommand(
     Guid? Id,
     string NameAr,
     string NameEn,
-    PaymentMethodKind Kind,
+    string? DescriptionAr,
+    string? DescriptionEn,
     bool RequiresAccountNumber,
     bool RequiresBarcode,
     bool RequiresBank,
@@ -48,7 +54,14 @@ public sealed class UpsertPaymentMethodTypeCommandValidator
     {
         RuleFor(c => c.NameAr).NotEmpty().MaximumLength(200);
         RuleFor(c => c.NameEn).NotEmpty().MaximumLength(200);
-        RuleFor(c => c.Kind).IsInEnum();
+
+        // Required on every save, as on the other described lookups: a type that predates
+        // descriptions gains them the next time someone edits it.
+        RuleFor(c => c.DescriptionAr).NotEmpty()
+            .WithMessage("Enter the Arabic description.").MaximumLength(2000);
+        RuleFor(c => c.DescriptionEn).NotEmpty()
+            .WithMessage("Enter the English description.").MaximumLength(2000);
+
         RuleFor(c => c.SortOrder).GreaterThanOrEqualTo(0);
 
         // A QR code or a bank name hangs off a receiving row, so asking for either without asking
@@ -57,13 +70,6 @@ public sealed class UpsertPaymentMethodTypeCommandValidator
             .Equal(true)
             .When(c => c.RequiresBarcode || c.RequiresBank)
             .WithMessage("Receiving numbers are needed before a QR code or a bank can be required.");
-
-        // Everything a transfer offers is a way to hand money over. A type offering none of them
-        // leaves the applicant a payment method they cannot pay.
-        RuleFor(c => c.RequiresExternalUrl)
-            .Equal(true)
-            .When(c => c.Kind == PaymentMethodKind.Transfer && !c.RequiresAccountNumber)
-            .WithMessage("A transfer type needs receiving numbers, a payment link, or both.");
     }
 }
 
@@ -125,21 +131,47 @@ public sealed class PaymentMethodTypeHandlers :
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        PaymentMethodType type;
+        PaymentMethodType? type = null;
 
         if (request.Id is { } id && id != Guid.Empty)
         {
             type = await _lookups.RequireAsync(_db.PaymentMethodTypes, id, cancellationToken);
         }
-        else
+
+        // A new type is a transfer; an existing one keeps its kind, so the seeded PayPal type can
+        // still be renamed or described.
+        var kind = type?.Kind ?? PaymentMethodKind.Transfer;
+
+        // Everything a transfer offers is a way to hand money over. A type offering none of them
+        // leaves the applicant a payment method they cannot pay. Checked here rather than in the
+        // validator, because it depends on the stored kind, not on anything in the request.
+        if (kind == PaymentMethodKind.Transfer
+            && !request.RequiresAccountNumber
+            && !request.RequiresExternalUrl)
         {
-            type = new PaymentMethodType { NameAr = request.NameAr, NameEn = request.NameEn };
+            throw new ValidationException(
+            [
+                new ValidationFailure(
+                    nameof(request.RequiresExternalUrl),
+                    "A transfer type needs receiving numbers, a payment link, or both."),
+            ]);
+        }
+
+        if (type is null)
+        {
+            type = new PaymentMethodType
+            {
+                NameAr = request.NameAr,
+                NameEn = request.NameEn,
+                Kind = PaymentMethodKind.Transfer,
+            };
             _db.PaymentMethodTypes.Add(type);
         }
 
+        var typeId = type.Id;
         await _lookups.EnsureUniqueAsync(
             _db.PaymentMethodTypes,
-            other => other.Id != type.Id
+            other => other.Id != typeId
                 && (other.NameEn == request.NameEn || other.NameAr == request.NameAr),
             "payment_method_type.duplicate_name",
             "A payment type with this name already exists.",
@@ -147,7 +179,8 @@ public sealed class PaymentMethodTypeHandlers :
 
         type.NameAr = request.NameAr;
         type.NameEn = request.NameEn;
-        type.Kind = request.Kind;
+        type.DescriptionAr = request.DescriptionAr!.Trim();
+        type.DescriptionEn = request.DescriptionEn!.Trim();
         type.RequiresAccountNumber = request.RequiresAccountNumber;
         type.RequiresBarcode = request.RequiresBarcode;
         type.RequiresBank = request.RequiresBank;

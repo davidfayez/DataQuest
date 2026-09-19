@@ -15,6 +15,8 @@ import { OrdersPage } from '@/pages/orders/OrdersPage';
 import { PaymentMethodsPage } from '@/pages/payments/PaymentMethodsPage';
 import { PaymentTypesPage } from '@/pages/payments/PaymentTypesPage';
 import { PaymentTypeFormPage } from '@/pages/payments/PaymentTypeFormPage';
+import { PaymentIntegrationsPage } from '@/pages/payments/PaymentIntegrationsPage';
+import { PaymentIntegrationFormPage } from '@/pages/payments/PaymentIntegrationFormPage';
 import { BanksPage } from '@/pages/payments/BanksPage';
 import { ContactDirectoryPage } from '@/pages/content/ContactDirectoryPage';
 import { FooterChannelsPage } from '@/pages/content/FooterChannelsPage';
@@ -260,6 +262,30 @@ export const router = createBrowserRouter([
         element: (
           <RequirePermission permissions={[Permissions.PaymentMethodsUpdate]}>
             <PaymentTypeFormPage />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: 'payments/integrations',
+        element: (
+          <RequirePermission permissions={[Permissions.PaymentMethodsView]}>
+            <PaymentIntegrationsPage />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: 'payments/integrations/new',
+        element: (
+          <RequirePermission permissions={[Permissions.PaymentMethodsCreate]}>
+            <PaymentIntegrationFormPage />
+          </RequirePermission>
+        ),
+      },
+      {
+        path: 'payments/integrations/:id/edit',
+        element: (
+          <RequirePermission permissions={[Permissions.PaymentMethodsUpdate]}>
+            <PaymentIntegrationFormPage />
           </RequirePermission>
         ),
       },

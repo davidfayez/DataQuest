@@ -221,10 +221,12 @@ public sealed class ApplicationWriteService
         foreach (var input in services)
         {
             var serviceType = serviceTypes[input.ServiceTypeId];
-            var price = serviceType.FindCost(currencyId)
+            // A price switched off since the draft was started no longer sells: the draft has to
+            // drop that service rather than buy it at a price the administrator withdrew.
+            var price = serviceType.FindActiveCost(currencyId)
                 ?? throw new ConflictException(
                     "service.currency_price_missing",
-                    $"Service type '{serviceType.NameEn}' has no price in the order's currency.");
+                    $"Service type '{serviceType.NameEn}' is not offered in the order's currency.");
 
             var languageCode = input.LanguageCode.Trim().ToLowerInvariant();
 
@@ -362,7 +364,10 @@ public sealed class ApplicationWriteService
             .AsNoTracking()
             .Include(f => f.Fields).ThenInclude(f => f.Options)
             .Include(f => f.AllowedFileTypes)
-            .Where(f => serviceTypeIds.Contains(f.ServiceTypeId) && f.IsActive)
+            .Include(f => f.Samples)
+            .Where(f => f.ServiceTypeId != null
+                        && serviceTypeIds.Contains(f.ServiceTypeId.Value)
+                        && f.IsActive)
             .ToListAsync(cancellationToken);
 
         var enteredValues = await _db.ApplicationDocumentValues
@@ -420,7 +425,8 @@ public sealed class ApplicationWriteService
                     fields.Select(f => RequiredFileFieldDto.From(f, languageCode)).ToList(),
                     values,
                     fieldsComplete,
-                    DocumentFileTypes.ExtensionsForAll(definition.ResolveAllowedFileTypes())));
+                    DocumentFileTypes.ExtensionsForAll(definition.ResolveAllowedFileTypes()),
+                    RequiredFileSampleDto.ListFor(definition, languageCode)));
             }
         }
 

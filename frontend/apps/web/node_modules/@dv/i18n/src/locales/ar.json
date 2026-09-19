@@ -142,14 +142,10 @@
   },
   "setup": {
     "title": "إعداد طلبك",
-    "subtitle": "حدّد الدولة التي سيتم التحقق فيها من مستنداتك، والعملة التي ستدفع بها.",
+    "subtitle": "اختر مكان التحقق من مستنداتك والشخص الذي نتواصل معه بشأن طلبك.",
     "countryLabel": "دولة التحقق",
     "countryPlaceholder": "اختر الدولة",
     "countryHint": "تحدد هذه الدولة الجهات والخدمات المتاحة لك.",
-    "currencyLabel": "العملة",
-    "currencyPlaceholder": "اختر العملة",
-    "currencyHint": "سيتم فتح محفظتك بهذه العملة ولا يمكن تغييرها لاحقًا.",
-    "selectCountryFirst": "اختر الدولة أولًا",
     "contactNameLabel": "اسم مسؤول التواصل",
     "contactNamePlaceholder": "الاسم بالكامل",
     "contactNameHint": "الشخص الذي نتواصل معه بشأن هذا الطلب.",
@@ -158,7 +154,7 @@
     "contactPhoneHint": "اختر رمز الدولة ثم أدخل الرقم بدونه.",
     "submit": "تأكيد وفتح المحفظة",
     "warningTitle": "هذا الاختيار نهائي",
-    "warningBody": "بمجرد فتح المحفظة، تصبح دولة التحقق والعملة ثابتتين لهذا الطلب.",
+    "warningBody": "بمجرد فتح محفظتك، تصبح دولة التحقق ثابتة لهذا الطلب.",
     "successTitle": "طلبك جاهز",
     "successBody": "تم فتح محفظتك بعملة {{currency}}. يمكنك الآن إنشاء أول طلب تحقق."
   },
@@ -169,7 +165,6 @@
     "orderNumberLength": "أدخل رقم الطلب كاملًا كما ورد في بريدك الإلكتروني.",
     "passwordRequired": "أدخل كلمة المرور.",
     "countryRequired": "اختر دولة التحقق.",
-    "currencyRequired": "اختر العملة.",
     "contactNameRequired": "أدخل اسم مسؤول التواصل.",
     "contactNameTooLong": "يجب ألا يزيد الاسم عن 200 حرف.",
     "contactPhoneRequired": "أدخل رقم هاتف مسؤول التواصل.",
@@ -315,7 +310,9 @@
       "replaceHint": "اختر ملفًا لاستبداله",
       "preview": "معاينة",
       "download": "تنزيل",
-      "previewUnavailable": "لا يمكن عرض هذا النوع من الملفات هنا. نزّله لفتحه."
+      "previewUnavailable": "لا يمكن عرض هذا النوع من الملفات هنا. نزّله لفتحه.",
+      "referenceDocuments": "مستندات مرجعية",
+      "referenceDocumentsHint": "نماذج تساعدك على تجهيز هذا المستند."
     },
     "review": {
       "title": "مراجعة طلبك",
@@ -431,7 +428,14 @@
     "success_many": "تم دفع {{count}} طلبًا.",
     "success_other": "تم دفع {{count}} طلب.",
     "addTheDifference": "إضافة رصيد",
-    "shortfallHint": "تحتاج إلى {{amount}} إضافية. تخضع الإضافة لتأكيد فريقنا قبل أن يمكن إنفاقها."
+    "shortfallHint": "تحتاج إلى {{amount}} إضافية. تخضع الإضافة لتأكيد فريقنا قبل أن يمكن إنفاقها.",
+    "payFrom": "الدفع من",
+    "notSoldInCurrency": "هذه الخدمات غير متاحة بعملة {{currency}}. اختر رصيدًا آخر.",
+    "repricedNotice": "الدفع بعملة {{currency}} يسعّر هذه الطلبات وفق أسعار الخدمات بعملة {{currency}}.",
+    "notSoldShort": "غير متاحة بهذه العملة",
+    "totalIn": "الإجمالي {{amount}}",
+    "balanceIs": "الرصيد {{amount}}",
+    "notEnough": "غير كافٍ"
   },
   "wallet": {
     "title": "المحفظة",
@@ -533,7 +537,25 @@
     "chooseMethodInType": "أي {{type}} تودّ استخدامه؟",
     "change": "تغيير",
     "selectMethod": "اختر وسيلة الدفع",
-    "methodsAvailable": "{{n}} للاختيار من بينها"
+    "methodsAvailable": "{{n}} للاختيار من بينها",
+    "documentsTitle": "المستندات المطلوبة",
+    "documentsHint": "تطلب طريقة الدفع هذه هذه المستندات مع كل طلب.",
+    "chooseFiles": "اختر الملفات",
+    "documentLimits": "حتى {{count}} ملف · {{size}} لكل ملف · {{types}}",
+    "documentWrongType": "الملف {{name}} ليس بصيغة يقبلها هذا المستند.",
+    "documentTooLarge": "حجم {{name}} أكبر من {{size}}.",
+    "needDocument": "أرفق {{name}}",
+    "needDetails": "املأ بيانات {{name}}",
+    "detailsProvided": "البيانات التي أدخلتها",
+    "mainCurrency": "الرئيسية",
+    "balances": "أرصدتك",
+    "showStatement": "عرض الكشف",
+    "addFundsSubtitle": "اختر الرصيد الذي تريد تعبئته، ثم طريقة إرسال المبلغ.",
+    "depositsUnavailable": "إضافة الأموال غير متاحة حاليًا.",
+    "withdrawalsUnavailable": "السحب غير متاح حاليًا.",
+    "nothingToWithdraw": "لا يوجد في أي من أرصدتك مبلغ يمكن سحبه.",
+    "chooseBalanceToFund": "إلى أي رصيد تضيف المبلغ؟",
+    "chooseBalanceToWithdraw": "من أي رصيد تسحب؟"
   },
   "details": {
     "backToList": "العودة إلى طلباتي",

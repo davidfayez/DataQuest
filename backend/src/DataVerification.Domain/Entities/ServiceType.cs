@@ -24,6 +24,13 @@ public class ServiceType : LocalizedLookup, ICodedLookup
 
     public string? DescriptionEn { get; set; }
 
+    /// <summary>
+    /// Keeps the description out of everything an applicant reads — the landing page, the wizard
+    /// and their application — while leaving it in the admin panel. The text is kept, so switching
+    /// this back off shows it again unchanged.
+    /// </summary>
+    public bool HideDescription { get; set; }
+
     public int ExecutionTimeDays { get; set; }
 
     /// <summary>
@@ -86,6 +93,12 @@ public class ServiceType : LocalizedLookup, ICodedLookup
     }
 
     /// <summary>
+    /// The description an applicant may read: null while <see cref="HideDescription"/> is on.
+    /// </summary>
+    public string? ResolveApplicantDescription(string? languageCode) =>
+        HideDescription ? null : ResolveDescription(languageCode);
+
+    /// <summary>
     /// Picks the express note for a language tag, mirroring <see cref="ResolveDescription"/>.
     /// Returns <c>null</c> when neither translation is set, which is the wizard's signal to use
     /// its own default wording.
@@ -104,6 +117,10 @@ public class ServiceType : LocalizedLookup, ICodedLookup
     /// <summary>Finds the price row for a currency, or <c>null</c> when none is configured.</summary>
     public ServiceTypeCost? FindCost(Guid currencyId) =>
         Costs.FirstOrDefault(cost => cost.CurrencyId == currencyId);
+
+    /// <summary>The price in a currency the service is currently sold in, or <c>null</c>.</summary>
+    public ServiceTypeCost? FindActiveCost(Guid currencyId) =>
+        Costs.FirstOrDefault(cost => cost.CurrencyId == currencyId && cost.IsActive);
 
     /// <summary>
     /// Authoritative price for a line. Costs are always recomputed here from the stored
@@ -153,14 +170,31 @@ public class ServiceTypeCost : Entity
     public decimal Cost { get; set; }
 
     public decimal ExpressCost { get; set; }
+
+    /// <summary>
+    /// Whether the service is sold in this currency. Switched off, the price is kept but the service
+    /// is no longer offered to orders held in it.
+    /// </summary>
+    public bool IsActive { get; set; } = true;
 }
 
-/// <summary>One file the applicant must (or may) attach for a given service type.</summary>
+/// <summary>
+/// One file the applicant must (or may) attach.
+/// </summary>
+/// <remarks>
+/// Owned by exactly one of a service type — uploaded in the application wizard — or a payment method
+/// — uploaded with a deposit request; a check constraint keeps it to one. The class keeps its name,
+/// and its table, from when service types were the only owner.
+/// </remarks>
 public class ServiceTypeRequiredFile : LocalizedLookup
 {
-    public Guid ServiceTypeId { get; set; }
+    public Guid? ServiceTypeId { get; set; }
 
     public ServiceType? ServiceType { get; set; }
+
+    public Guid? PaymentMethodId { get; set; }
+
+    public PaymentMethod? PaymentMethod { get; set; }
 
     public bool IsMandatory { get; set; } = true;
 
@@ -181,6 +215,12 @@ public class ServiceTypeRequiredFile : LocalizedLookup
     /// platform default — see <see cref="ResolveAllowedFileTypes"/>.
     /// </summary>
     public ICollection<RequiredFileAllowedType> AllowedFileTypes { get; set; } = [];
+
+    /// <summary>
+    /// Labelled reference files an administrator attached — a sample, a template — which the
+    /// applicant can preview beside the upload.
+    /// </summary>
+    public ICollection<RequiredFileSample> Samples { get; set; } = [];
 
     /// <summary>The effective size cap, never exceeding the platform maximum.</summary>
     public long ResolveMaxSizeBytes(long platformMaximum) =>
@@ -211,4 +251,56 @@ public class RequiredFileAllowedType : Entity
 
     /// <summary>A code from <see cref="DocumentFileTypes"/>, stored lower-cased.</summary>
     public required string FileTypeCode { get; set; }
+}
+
+/// <summary>
+/// A reference file on a required document: an example of what to upload, or a form to fill in.
+/// Only the metadata lives in SQL; the bytes go through file storage and are only ever served
+/// through a permission-checked endpoint keyed on this row's id.
+/// </summary>
+public class RequiredFileSample : Entity
+{
+    public Guid RequiredFileId { get; set; }
+
+    public ServiceTypeRequiredFile? RequiredFile { get; set; }
+
+    /// <summary>What the file is, as the applicant reads it — "Front side", "Filled-in example".</summary>
+    public string LabelAr { get; set; } = string.Empty;
+
+    public string LabelEn { get; set; } = string.Empty;
+
+    /// <summary>The name as uploaded, used when the file is downloaded.</summary>
+    public required string FileName { get; set; }
+
+    /// <summary>Provider-relative path; never exposed to clients.</summary>
+    public required string StoragePath { get; set; }
+
+    /// <summary>The type detected from the file's signature, not the one the browser claimed.</summary>
+    public required string ContentType { get; set; }
+
+    public long SizeBytes { get; set; }
+
+    /// <summary>Ascending display order; new files go last.</summary>
+    public int SortOrder { get; set; }
+
+    public string ResolveLabel(string? languageCode)
+    {
+        var label = LocalizedText.Resolve(LabelAr, LabelEn, languageCode);
+        return string.IsNullOrWhiteSpace(label) ? FileName : label;
+    }
+}
+
+/// <summary>The bounds on reference files, shared by the command that stores them and its tests.</summary>
+public static class RequiredFileSampleLimits
+{
+    /// <summary>A handful is useful; a gallery on every document is not.</summary>
+    public const int MaxPerDocument = 10;
+
+    public const int MaxLabelLength = 200;
+
+    /// <summary>The same cap as an applicant's upload: a reference file is the same kind of file.</summary>
+    public const long MaxFileSizeBytes = ApplicationFile.MaxFileSizeBytes;
+
+    /// <summary>Where the bytes are written, beside the other upload directories.</summary>
+    public const string StorageDirectory = "service-type-references";
 }

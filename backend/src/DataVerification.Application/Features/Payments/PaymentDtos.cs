@@ -1,3 +1,5 @@
+using DataVerification.Application.Features.Lookups;
+using DataVerification.Domain.Common;
 using DataVerification.Domain.Entities;
 using DataVerification.Domain.Enums;
 
@@ -13,6 +15,10 @@ public sealed record PaymentMethodTypeDto(
     string Name,
     string NameAr,
     string NameEn,
+    /// <summary>The description in the caller's language, falling back to the other.</summary>
+    string? Description,
+    string? DescriptionAr,
+    string? DescriptionEn,
     bool IsActive,
     PaymentMethodKind Kind,
     string KindName,
@@ -40,6 +46,9 @@ public sealed record PaymentMethodTypeDto(
             type.ResolveName(languageCode),
             type.NameAr,
             type.NameEn,
+            type.ResolveDescription(languageCode),
+            type.DescriptionAr,
+            type.DescriptionEn,
             type.IsActive,
             type.Kind,
             type.Kind.ToString(),
@@ -181,9 +190,26 @@ public sealed record AdminPaymentMethodDto(
     IReadOnlyList<PaymentNotificationEmailDto> NotificationEmails,
     /// <summary>Null when the method is paid by hand rather than through a provider.</summary>
     PaymentIntegrationDto? Integration,
-    bool IsUsable)
+    bool IsUsable,
+    /// <summary>The documents an applicant uploads with every deposit through this method.</summary>
+    IReadOnlyList<RequiredFileDto> RequiredFiles,
+    /// <summary>The gateway integration the method pays through, if any.</summary>
+    Guid? GatewayIntegrationId = null,
+    string? GatewayIntegrationName = null,
+    string? GatewayCode = null,
+    /// <summary>Sandbox or Live, as the chosen integration declares it.</summary>
+    string? GatewayModeName = null,
+    /// <summary>This method's settings for that gateway; empty without an integration.</summary>
+    IReadOnlyDictionary<string, string>? GatewaySettings = null,
+    /// <summary>Which gateway secrets are stored. The values come from their own endpoint.</summary>
+    IReadOnlyList<string>? ConfiguredGatewaySecrets = null,
+    /// <summary>False when the server has no encryption key, so gateway secrets cannot be saved.</summary>
+    bool CanStoreGatewaySecrets = true)
 {
-    public static AdminPaymentMethodDto From(PaymentMethod method, string? languageCode)
+    public static AdminPaymentMethodDto From(
+        PaymentMethod method,
+        string? languageCode,
+        bool canStoreGatewaySecrets = true)
     {
         ArgumentNullException.ThrowIfNull(method);
 
@@ -225,7 +251,23 @@ public sealed record AdminPaymentMethodDto(
                 .Select(PaymentNotificationEmailDto.From)
                 .ToList(),
             method.Integration is null ? null : PaymentIntegrationDto.From(method.Integration),
-            type is not null && method.IsUsable(type));
+            type is not null && method.IsUsable(type),
+            // Active only: a document dropped after something was submitted against it is kept,
+            // switched off, for history — it is no longer part of the method.
+            method.RequiredFiles
+                .Where(document => document.IsActive)
+                .OrderByDescending(document => document.IsMandatory)
+                .ThenBy(document => document.NameEn)
+                .Select(document => RequiredFileDto.From(document, languageCode))
+                .ToList(),
+            method.GatewayIntegrationId,
+            method.GatewayIntegration?.ResolveName(languageCode),
+            method.GatewayIntegration?.GatewayCode,
+            method.GatewayIntegration?.Mode.ToString(),
+            Admin.GatewaySettingsJson.Read(method.GatewaySettingsJson),
+            Admin.GatewaySettingsJson.Read(method.GatewaySecretsJson)
+                .Keys.Order(StringComparer.Ordinal).ToList(),
+            canStoreGatewaySecrets);
     }
 }
 
@@ -262,7 +304,12 @@ public sealed record PaymentMethodOptionDto(
     bool RequiresExternalUrl,
     bool RequiresProofDocument,
     bool RequiresReferenceNumber,
-    IReadOnlyList<PaymentAccountOptionDto> Accounts)
+    IReadOnlyList<PaymentAccountOptionDto> Accounts,
+    /// <summary>
+    /// The documents to upload with the deposit, with the details to fill in beside each and the
+    /// reference files to look at. Active ones only.
+    /// </summary>
+    IReadOnlyList<RequiredFileDto> RequiredFiles)
 {
     public static PaymentMethodOptionDto From(PaymentMethod method, string? languageCode)
     {
@@ -298,6 +345,12 @@ public sealed record PaymentMethodOptionDto(
                     account.AccountHolder,
                     account.Bank?.ResolveName(languageCode),
                     account.HasBarcode))
+                .ToList(),
+            method.RequiredFiles
+                .Where(document => document.IsActive)
+                .OrderByDescending(document => document.IsMandatory)
+                .ThenBy(document => document.NameEn)
+                .Select(document => RequiredFileDto.From(document, languageCode))
                 .ToList());
     }
 }
@@ -308,13 +361,26 @@ public sealed record WalletRequestFileDto(
     string FileName,
     string ContentType,
     long SizeBytes,
-    DateTime CreatedAtUtc)
+    DateTime CreatedAtUtc,
+    /// <summary>The payment method document this file was sent for; null for general proof.</summary>
+    Guid? RequiredFileId = null,
+    /// <summary>That document's name, as it was when the file was sent, in the caller's language.</summary>
+    string? DocumentName = null)
 {
-    public static WalletRequestFileDto From(WalletRequestFile file)
+    public static WalletRequestFileDto From(WalletRequestFile file, string? languageCode = null)
     {
         ArgumentNullException.ThrowIfNull(file);
 
-        return new(file.Id, file.FileName, file.ContentType, file.SizeBytes, file.CreatedAtUtc);
+        return new(
+            file.Id,
+            file.FileName,
+            file.ContentType,
+            file.SizeBytes,
+            file.CreatedAtUtc,
+            file.RequiredFileId,
+            file.RequiredFileId is null
+                ? null
+                : LocalizedText.Resolve(file.DocumentNameAr, file.DocumentNameEn, languageCode));
     }
 }
 

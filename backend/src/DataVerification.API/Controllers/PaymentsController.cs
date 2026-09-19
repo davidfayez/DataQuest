@@ -52,9 +52,21 @@ public sealed class PaymentsController : ControllerBase
         ArgumentNullException.ThrowIfNull(request);
 
         return Ok(await _sender.Send(
-            new PayApplicationsCommand(request.ApplicationIds),
+            new PayApplicationsCommand(request.ApplicationIds, request.CurrencyId),
             cancellationToken));
     }
+
+    /// <summary>
+    /// What the selected applications would cost from each of the order's balances, so the pay
+    /// screen can offer the ones that cover it.
+    /// </summary>
+    [HttpGet("payments/quote")]
+    [ProducesResponseType(typeof(PaymentQuoteDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PaymentQuoteDto>> Quote(
+        [FromQuery] List<Guid> applicationIds,
+        CancellationToken cancellationToken) =>
+        Ok(await _sender.Send(new GetPaymentQuoteQuery(applicationIds), cancellationToken));
 
     /// <summary>Refunds a paid application that has not been started. Returns 409 otherwise.</summary>
     [HttpPost("applications/{id:guid}/refund")]
@@ -89,7 +101,7 @@ public sealed class PaymentsController : ControllerBase
         ArgumentNullException.ThrowIfNull(request);
 
         return Ok(await _sender.Send(
-            new CreateWalletRequestCommand(request.Type, request.Amount, request.Note),
+            new CreateWalletRequestCommand(request.Type, request.Amount, request.Note, request.CurrencyId),
             cancellationToken));
     }
 
@@ -101,8 +113,9 @@ public sealed class PaymentsController : ControllerBase
     [HttpGet("orders/me/payment-methods")]
     [ProducesResponseType(typeof(IReadOnlyList<PaymentMethodOptionDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<PaymentMethodOptionDto>>> GetPaymentMethods(
+        [FromQuery] Guid? currencyId,
         CancellationToken cancellationToken) =>
-        Ok(await _sender.Send(new GetOrderPaymentMethodsQuery(), cancellationToken));
+        Ok(await _sender.Send(new GetOrderPaymentMethodsQuery(currencyId), cancellationToken));
 
     /// <summary>The scannable code for one receiving account, if the order may pay through it.</summary>
     [HttpGet("orders/me/payment-methods/accounts/{accountId:guid}/barcode")]
@@ -125,7 +138,10 @@ public sealed class PaymentsController : ControllerBase
     /// available to this order, or when something the method's type requires is missing.
     /// </summary>
     [HttpPost("orders/me/wallet/requests/deposit")]
-    [RequestSizeLimit((CreateDepositRequestCommandHandler.MaxProofBytes * CreateDepositRequestCommandHandler.MaxProofFiles) + 8192)]
+    [RequestSizeLimit(
+        (CreateDepositRequestCommandHandler.MaxProofBytes * CreateDepositRequestCommandHandler.MaxProofFiles)
+        + (Domain.Entities.ApplicationFile.MaxFileSizeBytes * CreateDepositRequestCommandHandler.MaxDocumentFiles)
+        + 65536)]
     [EnableRateLimiting(RateLimitPolicies.Uploads)]
     [ProducesResponseType(typeof(WalletRequestDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -154,6 +170,25 @@ public sealed class PaymentsController : ControllerBase
                 uploads.Add(new DepositProofUpload(file.FileName, file.Length, buffer));
             }
 
+            var documentUploads = new List<DepositDocumentUpload>();
+
+            foreach (var document in request.Documents)
+            {
+                foreach (var file in document.Files.Where(f => f.Length > 0))
+                {
+                    var buffer = new MemoryStream();
+                    buffers.Add(buffer);
+                    await file.CopyToAsync(buffer, cancellationToken);
+                    buffer.Position = 0;
+                    documentUploads.Add(new DepositDocumentUpload(
+                        document.RequiredFileId, file.FileName, file.Length, buffer));
+                }
+            }
+
+            var values = request.Values
+                .Select(value => new DepositDocumentValue(value.FieldId, value.Value))
+                .ToList();
+
             return Ok(await _sender.Send(
                 new CreateDepositRequestCommand(
                     request.PaymentMethodId,
@@ -161,7 +196,10 @@ public sealed class PaymentsController : ControllerBase
                     request.Amount,
                     request.ReferenceNumber,
                     request.Note,
-                    uploads),
+                    uploads,
+                    documentUploads,
+                    values,
+                    request.CurrencyId),
                 cancellationToken));
         }
         finally
@@ -218,17 +256,19 @@ public sealed class PaymentsController : ControllerBase
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        return Ok(await _sender.Send(new SimulateDepositCommand(request.Amount), cancellationToken));
+        return Ok(await _sender.Send(new SimulateDepositCommand(request.Amount, request.CurrencyId), cancellationToken));
     }
 }
 
-public sealed record PayApplicationsRequest(IReadOnlyList<Guid> ApplicationIds);
+/// <param name="CurrencyId">Which balance pays; see PayApplicationsCommand.</param>
+public sealed record PayApplicationsRequest(IReadOnlyList<Guid> ApplicationIds, Guid? CurrencyId = null);
 
 public sealed record RefundApplicationRequest(string? Note);
 
-public sealed record CreateWalletRequestBody(WalletRequestType Type, decimal Amount, string? Note);
+/// <param name="CurrencyId">Which balance; the order's main currency when omitted.</param>
+public sealed record CreateWalletRequestBody(WalletRequestType Type, decimal Amount, string? Note, Guid? CurrencyId = null);
 
-public sealed record SimulateDepositBody(decimal Amount);
+public sealed record SimulateDepositBody(decimal Amount, Guid? CurrencyId = null);
 
 /// <summary>
 /// The deposit form, posted as multipart. <see cref="Files"/> carries the receipts; which of the
@@ -236,6 +276,9 @@ public sealed record SimulateDepositBody(decimal Amount);
 /// </summary>
 public sealed class CreateDepositRequestBody
 {
+    /// <summary>Which balance the money is for; the order's main currency when omitted.</summary>
+    public Guid? CurrencyId { get; set; }
+
     public Guid PaymentMethodId { get; set; }
 
     /// <summary>Which receiving account was paid. Required by types that configure accounts.</summary>
@@ -248,4 +291,32 @@ public sealed class CreateDepositRequestBody
     public string? Note { get; set; }
 
     public List<IFormFile> Files { get; set; } = [];
+
+    /// <summary>
+    /// Files for the method's required documents, one entry per document — posted as
+    /// <c>documents[0].requiredFileId</c> and <c>documents[0].files</c>.
+    /// </summary>
+    public List<DepositDocumentForm> Documents { get; set; } = [];
+
+    /// <summary>
+    /// The details typed beside those documents — posted as <c>values[0].fieldId</c> and
+    /// <c>values[0].value</c>.
+    /// </summary>
+    public List<DepositValueForm> Values { get; set; } = [];
+}
+
+/// <summary>The files sent for one of the method's required documents.</summary>
+public sealed class DepositDocumentForm
+{
+    public Guid RequiredFileId { get; set; }
+
+    public List<IFormFile> Files { get; set; } = [];
+}
+
+/// <summary>One detail typed beside a required document.</summary>
+public sealed class DepositValueForm
+{
+    public Guid FieldId { get; set; }
+
+    public string? Value { get; set; }
 }

@@ -4,9 +4,9 @@ using DataVerification.Domain.Enums;
 namespace DataVerification.Domain.Entities;
 
 /// <summary>
-/// One wallet per order, denominated in the currency chosen at setup. <see cref="Balance"/> is a
-/// cached running total; <see cref="Transactions"/> is the source of truth and the two must always
-/// reconcile (see <see cref="LedgerBalance"/>).
+/// An order's money in one currency — an order holds one wallet per currency it has used.
+/// <see cref="Balance"/> is a cached running total; <see cref="Transactions"/> is the source of truth
+/// and the two must always reconcile (see <see cref="LedgerBalance"/>).
 /// </summary>
 public class Wallet : Entity
 {

@@ -24,6 +24,8 @@ export interface CurrencyDto extends LookupBase {
   symbol: string;
   /** Countries this currency is offered in. */
   countryIds: string[];
+  /** When listed for one country: whether it is that country's main currency. */
+  isDefault?: boolean;
 }
 
 /**
@@ -116,6 +118,21 @@ export interface RequiredFileDto {
   allowedFileTypes: string[];
   /** The same set as file extensions, for an upload control's accept list. */
   allowedExtensions: string[];
+  /** Labelled reference files attached to this document, in display order. */
+  samples: RequiredFileSampleDto[];
+}
+
+/** A reference file on a required document; its bytes are fetched through its own endpoint. */
+export interface RequiredFileSampleDto {
+  id: string;
+  requiredFileId: string;
+  label: string;
+  labelAr: string;
+  labelEn: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  sortOrder: number;
 }
 
 export interface ServiceTypeCostDto {
@@ -123,6 +140,8 @@ export interface ServiceTypeCostDto {
   currencyCode: string | null;
   cost: number;
   expressCost: number;
+  /** Whether the service is sold in this currency; off keeps the price but hides the service. */
+  isActive: boolean;
 }
 
 export interface ServiceTypeDto extends LookupBase {
@@ -142,6 +161,8 @@ export interface ServiceTypeDto extends LookupBase {
   expressNoteAr: string | null;
   expressNoteEn: string | null;
   showOnLanding: boolean;
+  /** The description is kept for the panel only; applicants are shown none. */
+  hideDescription: boolean;
   costs: ServiceTypeCostDto[];
   requiredFiles: RequiredFileDto[];
   /** Locale codes the result may be issued in; drives the applicant's output-language list. */
@@ -234,6 +255,7 @@ export function useDeleteLookup(path: string) {
  * The currencies currently mapped to a country. Uses the admin route — the applicant-facing
  * `countries/{id}/currencies` sits on the Applicant policy and refuses an admin token.
  */
+/** Listed for one country, a currency also says whether it is that country's main one. */
 export function useCountryCurrencies(countryId: string | undefined) {
   const lang = useLanguage();
 

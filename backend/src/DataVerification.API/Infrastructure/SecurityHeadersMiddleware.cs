@@ -28,7 +28,8 @@ public sealed class SecurityHeadersMiddleware
         headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()";
 
         // Uploaded files are streamed back to their owner; forbid the browser from ever treating
-        // one as an active document in this origin.
+        // one as an active document in this origin. Public artwork the sites draw from their own
+        // origins relaxes this per action with [EmbeddableResource].
         headers["Cross-Origin-Resource-Policy"] = "same-origin";
 
         return _next(context);

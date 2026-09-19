@@ -86,10 +86,16 @@ export function PaymentTypesTable({ caps }: { caps: LookupCaps }) {
         columns={[
           ...nameColumns<PaymentMethodTypeDto>(t),
           {
-            key: 'kind',
-            header: t('payments.kindLabel'),
-            getValue: (row) => row.kindName,
-            render: (row) => t(`payments.kind.${row.kindName}`),
+            key: 'description',
+            header: t('payments.description'),
+            sortable: false,
+            getValue: (row) => row.description ?? '',
+            render: (row) =>
+              row.description ? (
+                <span className="line-clamp-2 max-w-md text-sm text-ink-700">{row.description}</span>
+              ) : (
+                <span className="text-subtle">—</span>
+              ),
           },
           {
             key: 'requires',

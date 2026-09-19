@@ -59,9 +59,10 @@ export const queryKeys = {
   statusLog: (id: string) => ['applications', id, 'status-log'] as const,
   changeLog: (id: string, page: number) => ['applications', id, 'change-log', page] as const,
   results: (id: string) => ['applications', id, 'results'] as const,
-  wallet: (page?: number, type?: number) => ['wallet', page ?? 1, type ?? 'all'] as const,
+  wallet: (page?: number, type?: number, currencyId?: string) =>
+    ['wallet', page ?? 1, type ?? 'all', currencyId ?? 'main'] as const,
   walletRequests: (page?: number) => ['wallet-requests', page ?? 1] as const,
   // Under the same prefix as the list, so one wallet mutation invalidates both.
   walletRequest: (id: string) => ['wallet-requests', 'detail', id] as const,
-  paymentMethods: () => ['payment-methods'] as const,
+  paymentMethods: (currencyId?: string) => ['payment-methods', currencyId ?? 'main'] as const,
 };

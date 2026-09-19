@@ -81,7 +81,44 @@ public class Order : Entity
             ? null
             : $"{ContactPersonPhoneCode}{ContactPersonPhoneNumber}";
 
-    public Wallet? Wallet { get; set; }
+    /// <summary>
+    /// One wallet per currency the order holds money in. The main currency's is opened at setup;
+    /// the others open the first time money moves in them — any currency the order's country offers.
+    /// </summary>
+    public ICollection<Wallet> Wallets { get; set; } = [];
+
+    /// <summary>The wallet in a currency, when the order has one.</summary>
+    public Wallet? WalletFor(Guid currencyId) => Wallets.FirstOrDefault(w => w.CurrencyId == currencyId);
+
+    /// <summary>
+    /// The wallet in a currency, opened if the order does not hold one yet. Only a currency the
+    /// order's country offers can be held; the country must be loaded with its currencies.
+    /// </summary>
+    public Wallet OpenWallet(Currency currency)
+    {
+        ArgumentNullException.ThrowIfNull(currency);
+
+        if (!IsSetupComplete || VerificationCountry is null)
+        {
+            throw new DomainException(
+                "order.setup_incomplete",
+                "Complete order setup before adding money to the wallet.");
+        }
+
+        var existing = WalletFor(currency.Id);
+        if (existing is not null) return existing;
+
+        if (!VerificationCountry.SupportsCurrency(currency.Id))
+        {
+            throw new DomainException(
+                "wallet.currency_not_available",
+                $"Currency '{currency.Code}' is not available for this order's country.");
+        }
+
+        var wallet = new Wallet { OrderId = Id, Order = this, CurrencyId = currency.Id, Currency = currency };
+        Wallets.Add(wallet);
+        return wallet;
+    }
 
     public ICollection<VerificationApplication> Applications { get; set; } = [];
 
@@ -98,9 +135,9 @@ public class Order : Entity
     public bool IsLockedOut(DateTime utcNow) => LockoutEndsAtUtc.HasValue && LockoutEndsAtUtc > utcNow;
 
     /// <summary>
-    /// Locks the order's country and currency, records who to contact about it, and opens its
-    /// wallet. Setup runs once: the wallet currency must stay fixed, otherwise an existing ledger
-    /// would mix denominations.
+    /// Locks the order's country and main currency, records who to contact about it, and opens the
+    /// main currency's wallet. Setup runs once. Wallets in the country's other currencies open later,
+    /// as money arrives in them.
     /// </summary>
     public Wallet CompleteSetup(
         Country country,
@@ -139,8 +176,9 @@ public class Order : Entity
         ContactPersonPhoneNumber = NationalPhoneNumber.Normalise(contactPhoneNumber);
         UpdatedAtUtc = DateTime.UtcNow;
 
-        Wallet = new Wallet { OrderId = Id, CurrencyId = currency.Id };
-        return Wallet;
+        var wallet = new Wallet { OrderId = Id, Order = this, CurrencyId = currency.Id, Currency = currency };
+        Wallets.Add(wallet);
+        return wallet;
     }
 
     /// <summary>True while a password issued by "forgot password" is still waiting to be used.</summary>

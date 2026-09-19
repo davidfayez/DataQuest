@@ -8,10 +8,15 @@ using Microsoft.EntityFrameworkCore;
 namespace DataVerification.Application.Features.Wallets.Commands;
 
 /// <summary>
-/// Settles one or more applications from the order's wallet in a single transaction. The whole
-/// batch succeeds or none of it does — there is no partial payment.
+/// Settles one or more applications from one of the order's balances in a single transaction. The
+/// whole batch succeeds or none of it does — there is no partial payment.
 /// </summary>
-public sealed record PayApplicationsCommand(IReadOnlyList<Guid> ApplicationIds)
+/// <param name="CurrencyId">
+/// Which balance pays. An application priced in another currency is priced again in this one, from
+/// its services' prices in it. When omitted: the applications' own currency if they share one,
+/// otherwise the order's main currency.
+/// </param>
+public sealed record PayApplicationsCommand(IReadOnlyList<Guid> ApplicationIds, Guid? CurrencyId = null)
     : IRequest<PaymentResultDto>;
 
 public sealed class PayApplicationsCommandValidator : AbstractValidator<PayApplicationsCommand>
@@ -32,17 +37,20 @@ public sealed class PayApplicationsCommandHandler
     private readonly ICurrentUser _currentUser;
     private readonly IDateTimeProvider _clock;
     private readonly IAuditLogger _auditLogger;
+    private readonly WalletBook _wallets;
 
     public PayApplicationsCommandHandler(
         IApplicationDbContext db,
         ICurrentUser currentUser,
         IDateTimeProvider clock,
-        IAuditLogger auditLogger)
+        IAuditLogger auditLogger,
+        WalletBook wallets)
     {
         _db = db;
         _currentUser = currentUser;
         _clock = clock;
         _auditLogger = auditLogger;
+        _wallets = wallets;
     }
 
     public async Task<PaymentResultDto> Handle(
@@ -66,14 +74,20 @@ public sealed class PayApplicationsCommandHandler
         PayApplicationsCommand request,
         CancellationToken cancellationToken)
     {
-        var wallet = await _db.Wallets
-            .Include(w => w.Currency)
-            .FirstOrDefaultAsync(w => w.OrderId == orderId, cancellationToken)
+        var mainCurrencyId = await _db.Orders
+            .Where(o => o.Id == orderId)
+            .Select(o => o.CurrencyId)
+            .FirstOrDefaultAsync(cancellationToken)
             ?? throw new ConflictException(
                 "order.setup_incomplete",
                 "Complete order setup before paying for applications.");
 
+        // With their lines and prices, in case they have to be priced again in the chosen currency.
         var applications = await _db.Applications
+            .Include(a => a.Services)
+            .ThenInclude(s => s.ServiceType)
+            .ThenInclude(t => t!.Costs)
+            .AsSplitQuery()
             .Where(a => request.ApplicationIds.Contains(a.Id) && a.OrderId == orderId)
             .ToListAsync(cancellationToken);
 
@@ -95,6 +109,27 @@ public sealed class PayApplicationsCommandHandler
                 "payment.application_not_payable",
                 "Only applications awaiting payment can be paid for: "
                 + string.Join(", ", notPayable.Select(a => $"{a.ApplicationNumber} ({a.Status})")));
+        }
+
+        // The balance that pays: as asked, else the one currency the applications already share,
+        // else the order's main currency.
+        var shared = applications.Select(a => a.CurrencyId ?? mainCurrencyId).Distinct().ToList();
+        var currencyId = request.CurrencyId ?? (shared.Count == 1 ? shared[0] : mainCurrencyId);
+
+        // Opening it also checks the currency is one this order may hold.
+        var wallet = await _wallets.OpenAsync(orderId, currencyId, cancellationToken);
+        var currencyCode = wallet.Currency?.Code ?? string.Empty;
+
+        foreach (var application in applications.Where(a => (a.CurrencyId ?? mainCurrencyId) != currencyId))
+        {
+            // Throws payment.not_priced_in_currency when a service is not sold in it.
+            CurrencyPricing.Reprice(application, currencyId, currencyCode);
+        }
+
+        // Rows from before applications carried a currency are recorded in the one they were paid in.
+        foreach (var application in applications.Where(a => a.CurrencyId is null))
+        {
+            application.CurrencyId = currencyId;
         }
 
         var total = applications.Sum(a => a.TotalCost);
@@ -141,6 +176,7 @@ public sealed class PayApplicationsCommandHandler
             new
             {
                 Amount = total,
+                Currency = currencyCode,
                 wallet.Balance,
                 Applications = applications.Select(a => a.ApplicationNumber),
             },
@@ -169,7 +205,7 @@ public sealed class PayApplicationsCommandHandler
             ledgerEntry.Id,
             total,
             wallet.Balance,
-            wallet.Currency?.Code ?? string.Empty,
+            currencyCode,
             applications
                 .Select(a => new PaidApplicationDto(
                     a.Id,

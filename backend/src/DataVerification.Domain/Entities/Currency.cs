@@ -22,4 +22,10 @@ public class CountryCurrency : Entity
     public Guid CurrencyId { get; set; }
 
     public Currency? Currency { get; set; }
+
+    /// <summary>
+    /// The country's main currency: the one an order is set up in. Exactly one per country that
+    /// has currencies at all.
+    /// </summary>
+    public bool IsDefault { get; set; }
 }

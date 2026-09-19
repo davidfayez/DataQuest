@@ -196,6 +196,42 @@ public sealed class AdminSettingsController : ControllerBase
         ArgumentNullException.ThrowIfNull(command);
         return Ok(await _sender.Send(command, cancellationToken));
     }
+
+    /// <summary>
+    /// The SendGrid key saved on the settings page, in full, so the page can show it on request.
+    /// Served only to callers who may change the key, never cached, and every read is audited.
+    /// A key supplied through server configuration is not returned.
+    /// </summary>
+    [HttpGet("email/api-key")]
+    [RequirePermission(Permissions.SettingsUpdate)]
+    [ProducesResponseType(typeof(StoredApiKeyDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<StoredApiKeyDto>> GetEmailApiKey(CancellationToken cancellationToken)
+    {
+        ForbidCaching();
+        return Ok(await _sender.Send(new GetEmailApiKeyQuery(), cancellationToken));
+    }
+
+    /// <summary>
+    /// The stored Gemini key, in full, so the settings page can show it on request. Served only to
+    /// callers who may change the key, never cached, and every read is audited.
+    /// </summary>
+    [HttpGet("ai/api-key")]
+    [RequirePermission(Permissions.SettingsUpdate)]
+    [ProducesResponseType(typeof(StoredApiKeyDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<StoredApiKeyDto>> GetAiApiKey(CancellationToken cancellationToken)
+    {
+        ForbidCaching();
+        return Ok(await _sender.Send(new GetAiApiKeyQuery(), cancellationToken));
+    }
+
+    /// <summary>A secret in a response: no browser or proxy may keep a copy of it.</summary>
+    private void ForbidCaching()
+    {
+        Response.Headers.CacheControl = "no-store";
+        Response.Headers.Pragma = "no-cache";
+    }
 }
 
 /// <param name="ApiKey">The new key, or null/empty to clear the stored one.</param>

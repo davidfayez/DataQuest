@@ -4,6 +4,7 @@ using DataVerification.Application.Common.Models;
 using DataVerification.Application.Features.Lookups.Admin;
 using DataVerification.Domain.Entities;
 using DataVerification.Domain.Enums;
+using DataVerification.Domain.Payments;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,11 @@ public sealed record ListPaymentMethodsQuery : PagedQuery, IRequest<PagedResult<
 }
 
 public sealed record GetPaymentMethodQuery(Guid Id) : IRequest<AdminPaymentMethodDto>;
+
+/// <summary>One of the method's stored gateway secrets, in full, for the eye button.</summary>
+public sealed record GetPaymentMethodSecretQuery(Guid Id, string Key) : IRequest<StoredGatewaySecretDto>;
+
+public sealed record StoredGatewaySecretDto(string Key, string? Value);
 
 /// <summary>
 /// One receiving account as submitted by the editor. An <see cref="Id"/> that matches an existing
@@ -68,7 +74,26 @@ public sealed record UpsertPaymentMethodCommand(
     IReadOnlyList<PaymentMethodAccountInput> Accounts,
     IReadOnlyList<PaymentNotificationEmailInput> NotificationEmails,
     /// <summary>Null leaves any stored integration untouched; see PaymentIntegrationInput.</summary>
-    PaymentIntegrationInput? Integration = null)
+    PaymentIntegrationInput? Integration = null,
+    /// <summary>
+    /// The documents an applicant uploads with every deposit, edited in place by id. Null leaves the
+    /// stored ones untouched, so a client that predates them cannot clear them by omission.
+    /// </summary>
+    IReadOnlyList<RequiredFileInput>? RequiredFiles = null,
+    /// <summary>
+    /// The gateway integration this method pays through, from the Payment type integrations page.
+    /// Null means none, and clears whatever was configured for it.
+    /// </summary>
+    Guid? GatewayIntegrationId = null,
+    /// <summary>
+    /// The chosen gateway's non-secret settings, replaced outright. Ignored without an integration.
+    /// </summary>
+    IReadOnlyDictionary<string, string?>? GatewaySettings = null,
+    /// <summary>
+    /// The chosen gateway's secrets. A key left out keeps what is stored, an empty value removes it,
+    /// anything else replaces it.
+    /// </summary>
+    IReadOnlyDictionary<string, string?>? GatewaySecrets = null)
     : IRequest<AdminPaymentMethodDto>;
 
 public sealed record DeletePaymentMethodCommand(Guid Id) : IRequest<LookupDeleteOutcome>;
@@ -90,6 +115,15 @@ public sealed class UpsertPaymentMethodCommandValidator : AbstractValidator<Upse
 
         RuleFor(c => c.CountryIds).NotEmpty().WithMessage("Select at least one country.");
         RuleFor(c => c.CurrencyIds).NotEmpty().WithMessage("Select at least one currency.");
+
+        // The same rules a service type's documents follow.
+        When(c => c.RequiredFiles is not null, () =>
+        {
+            RuleForEach(c => c.RequiredFiles).SetValidator(new RequiredFileInputValidator());
+            RuleFor(c => c.RequiredFiles!)
+                .Must(list => list.Count <= 20)
+                .WithMessage("A method may ask for at most 20 documents.");
+        });
 
         RuleForEach(c => c.Accounts).ChildRules(account =>
         {
@@ -189,6 +223,7 @@ public sealed class UpsertPaymentMethodCommandValidator : AbstractValidator<Upse
 public sealed class PaymentMethodHandlers :
     IRequestHandler<ListPaymentMethodsQuery, PagedResult<AdminPaymentMethodDto>>,
     IRequestHandler<GetPaymentMethodQuery, AdminPaymentMethodDto>,
+    IRequestHandler<GetPaymentMethodSecretQuery, StoredGatewaySecretDto>,
     IRequestHandler<UpsertPaymentMethodCommand, AdminPaymentMethodDto>,
     IRequestHandler<DeletePaymentMethodCommand, LookupDeleteOutcome>
 {
@@ -246,11 +281,16 @@ public sealed class PaymentMethodHandlers :
 
         // Sort order is the admin's own arrangement of the applicant's picker, so the list they
         // arrange it on is ordered the same way.
-        query = query.OrderBy(method => method.SortOrder).ThenBy(method => method.NameEn);
+        // The id last: the related rows load in split queries, and each one has to page over the
+        // same rows in the same order.
+        query = query
+            .OrderBy(method => method.SortOrder)
+            .ThenBy(method => method.NameEn)
+            .ThenBy(method => method.Id);
 
         return await query.ToPagedResultAsync(
             request,
-            method => AdminPaymentMethodDto.From(method, _lookups.Language),
+            method => AdminPaymentMethodDto.From(method, _lookups.Language, _protector.IsEnabled),
             cancellationToken);
     }
 
@@ -264,7 +304,32 @@ public sealed class PaymentMethodHandlers :
             .FirstOrDefaultAsync(m => m.Id == request.Id, cancellationToken)
             ?? throw new NotFoundException(nameof(PaymentMethod), request.Id);
 
-        return AdminPaymentMethodDto.From(method, _lookups.Language);
+        return AdminPaymentMethodDto.From(method, _lookups.Language, _protector.IsEnabled);
+    }
+
+    public async Task<StoredGatewaySecretDto> Handle(
+        GetPaymentMethodSecretQuery request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var method = await _db.PaymentMethods
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Id == request.Id, cancellationToken)
+            ?? throw new NotFoundException(nameof(PaymentMethod), request.Id);
+
+        var secrets = GatewaySettingsJson.Read(method.GatewaySecretsJson);
+        var value = secrets.TryGetValue(request.Key, out var cipher) ? _protector.Unprotect(cipher) : null;
+
+        // Every look is recorded — which key, never what it was.
+        await _lookups.AuditAsync(
+            "PaymentMethod.GatewaySecretViewed",
+            nameof(PaymentMethod),
+            method.Id,
+            new { request.Key, Found = value is not null },
+            cancellationToken);
+
+        return new StoredGatewaySecretDto(request.Key, value);
     }
 
     public async Task<AdminPaymentMethodDto> Handle(
@@ -319,12 +384,29 @@ public sealed class PaymentMethodHandlers :
         var orphanedBarcodes = SyncAccounts(method, type, request.Accounts);
         SyncNotificationEmails(method, request.NotificationEmails);
         SyncIntegration(method, type, request.Integration);
+        await SyncGatewayIntegrationAsync(method, request, cancellationToken);
+
+        // Null leaves the stored documents alone; see the command.
+        IReadOnlyList<string> discardedReferences = [];
+        if (request.RequiredFiles is not null)
+        {
+            discardedReferences = await new RequiredDocumentSync(_db).SyncAsync(
+                method.RequiredFiles,
+                input => new ServiceTypeRequiredFile
+                {
+                    PaymentMethodId = method.Id,
+                    NameAr = input.NameAr,
+                    NameEn = input.NameEn,
+                },
+                request.RequiredFiles,
+                cancellationToken);
+        }
 
         await _lookups.SaveAsync(cancellationToken);
 
         // Only once the rows are gone are their files discarded, so a failed save never leaves a
-        // barcode pointing at bytes that no longer exist.
-        foreach (var path in orphanedBarcodes)
+        // barcode or a reference file pointing at bytes that no longer exist.
+        foreach (var path in orphanedBarcodes.Concat(discardedReferences))
         {
             await _storage.DeleteAsync(path, cancellationToken);
         }
@@ -339,6 +421,10 @@ public sealed class PaymentMethodHandlers :
                 Type = type.NameEn,
                 method.IsActive,
                 Countries = countryIds.Count,
+                GatewayIntegration = method.GatewayIntegration?.NameEn,
+                // Which gateway secrets exist, never what they are.
+                GatewaySecrets = GatewaySettingsJson.Read(method.GatewaySecretsJson)
+                    .Keys.Order(StringComparer.Ordinal).ToList(),
                 // Which credentials exist, never what they are.
                 Integration = method.Integration is null
                     ? null
@@ -354,7 +440,7 @@ public sealed class PaymentMethodHandlers :
             cancellationToken);
 
         method.Type = type;
-        return AdminPaymentMethodDto.From(method, _lookups.Language);
+        return AdminPaymentMethodDto.From(method, _lookups.Language, _protector.IsEnabled);
     }
 
     public async Task<LookupDeleteOutcome> Handle(
@@ -370,6 +456,14 @@ public sealed class PaymentMethodHandlers :
                 && account.BarcodeStoragePath != null)
             .Select(account => account.BarcodeStoragePath!)
             .ToListAsync(cancellationToken);
+
+        // And the reference files on its documents, which go with the method's rows.
+        var referencePaths = await _db.RequiredFileSamples
+            .AsNoTracking()
+            .Where(sample => sample.RequiredFile!.PaymentMethodId == request.Id)
+            .Select(sample => sample.StoragePath)
+            .ToListAsync(cancellationToken);
+        barcodePaths.AddRange(referencePaths);
 
         var outcome = await _lookups.DeleteOrDeactivateAsync(
             _db.PaymentMethods,
@@ -397,7 +491,15 @@ public sealed class PaymentMethodHandlers :
             .Include(method => method.Accounts)
             .ThenInclude(account => account.Bank)
             .Include(method => method.NotificationEmails)
-            .Include(method => method.Integration);
+            .Include(method => method.Integration)
+            .Include(method => method.GatewayIntegration)
+            .Include(method => method.RequiredFiles).ThenInclude(document => document.Fields)
+                .ThenInclude(field => field.Options)
+            .Include(method => method.RequiredFiles).ThenInclude(document => document.AllowedFileTypes)
+            .Include(method => method.RequiredFiles).ThenInclude(document => document.Samples)
+            // Split: documents, fields, options, formats, files, accounts and links joined into one
+            // result set would multiply every row by every other.
+            .AsSplitQuery();
 
     private PaymentMethod NewMethod(UpsertPaymentMethodCommand request)
     {
@@ -532,6 +634,83 @@ public sealed class PaymentMethodHandlers :
     /// when the editor actually sent one — an untouched field sends null, so saving a name change
     /// does not wipe live credentials that the page could never display in the first place.
     /// </remarks>
+    /// <summary>
+    /// Points the method at a gateway integration and stores its settings for that gateway.
+    ///
+    /// A retired integration may stay on a method that already uses it, but cannot be newly chosen.
+    /// Detaching the integration, or moving to one on a different gateway, clears the values: they
+    /// only mean anything against the gateway they were entered for.
+    /// </summary>
+    private async Task SyncGatewayIntegrationAsync(
+        PaymentMethod method,
+        UpsertPaymentMethodCommand request,
+        CancellationToken cancellationToken)
+    {
+        var integrationId = request.GatewayIntegrationId;
+
+        if (integrationId is null || integrationId == Guid.Empty)
+        {
+            method.GatewayIntegrationId = null;
+            method.GatewayIntegration = null;
+            method.GatewaySettingsJson = "{}";
+            method.GatewaySecretsJson = "{}";
+            return;
+        }
+
+        var integration = method.GatewayIntegrationId == integrationId && method.GatewayIntegration is not null
+            ? method.GatewayIntegration
+            : await _db.PaymentGatewayIntegrations
+                .FirstOrDefaultAsync(i => i.Id == integrationId, cancellationToken)
+                ?? throw new NotFoundException(nameof(PaymentGatewayIntegration), integrationId);
+
+        if (!integration.IsActive && method.GatewayIntegrationId != integration.Id)
+        {
+            throw new Common.Exceptions.ValidationException(
+            [
+                new FluentValidation.Results.ValidationFailure(
+                    nameof(UpsertPaymentMethodCommand.GatewayIntegrationId),
+                    "That integration is inactive; activate it or choose another."),
+            ]);
+        }
+
+        var gateway = PaymentGatewayCatalog.Find(integration.GatewayCode)
+            ?? throw new Common.Exceptions.ValidationException(
+            [
+                new FluentValidation.Results.ValidationFailure(
+                    nameof(UpsertPaymentMethodCommand.GatewayIntegrationId),
+                    "That integration's gateway is no longer available."),
+            ]);
+
+        // Secrets carry over only while the method stays on the same gateway.
+        var kept = KeepsStoredSecrets(method, integration)
+            ? GatewaySettingsJson.Read(method.GatewaySecretsJson)
+            : new Dictionary<string, string>(StringComparer.Ordinal);
+
+        var (settings, secrets) = GatewaySettingsBinder.Resolve(
+            gateway,
+            request.GatewaySettings,
+            request.GatewaySecrets,
+            kept,
+            integration.Mode,
+            _protector);
+
+        method.GatewayIntegrationId = integration.Id;
+        method.GatewayIntegration = integration;
+        method.GatewaySettingsJson = GatewaySettingsJson.Write(settings);
+        method.GatewaySecretsJson = GatewaySettingsJson.Write(secrets);
+    }
+
+    /// <summary>True while the method's stored secrets still belong to the gateway being saved.</summary>
+    private bool KeepsStoredSecrets(PaymentMethod method, PaymentGatewayIntegration integration)
+    {
+        if (method.GatewayIntegrationId is null) return false;
+        if (method.GatewayIntegrationId == integration.Id) return true;
+
+        // A different integration on the same gateway asks for the same fields, but it is a
+        // different account: its keys are not this one's.
+        return false;
+    }
+
     private void SyncIntegration(
         PaymentMethod method,
         PaymentMethodType type,

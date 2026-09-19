@@ -80,6 +80,10 @@ public sealed class BrandingTests : ApiTestBase
             await EnsureSuccessAsync(logo);
             logo.Content.Headers.ContentType!.MediaType.Should().Be("image/png");
             (await logo.Content.ReadAsByteArrayAsync()).Should().Equal(Png());
+
+            // The sites run on origins of their own; "same-origin" here makes the browser refuse
+            // to draw the logo at all.
+            logo.Headers.GetValues("Cross-Origin-Resource-Policy").Should().Contain("cross-origin");
         }
         finally
         {

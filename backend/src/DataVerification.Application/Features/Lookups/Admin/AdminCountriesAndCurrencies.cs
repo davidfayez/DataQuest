@@ -289,6 +289,13 @@ public sealed class CurrencyAdminHandlers :
         }
 
         await _lookups.SaveAsync(cancellationToken);
+
+        // Linking or unlinking countries here can leave one without a main currency.
+        await CountryDefaultCurrencies.EnsureAsync(
+            _db,
+            requestedCountries.Concat(removedCountryIds).Distinct().ToList(),
+            cancellationToken);
+
         await _lookups.AuditAsync(
             request.Id is null ? "Currency.Created" : "Currency.Updated",
             nameof(Currency),
@@ -354,19 +361,28 @@ public sealed class GetCountryCurrenciesForAdminQueryHandler
             throw new NotFoundException("Country", request.CountryId);
         }
 
-        var currencies = await _db.CountryCurrencies
+        var links = await _db.CountryCurrencies
             .AsNoTracking()
+            .Include(cc => cc.Currency)
             .Where(cc => cc.CountryId == request.CountryId)
-            .Select(cc => cc.Currency!)
-            .OrderBy(c => c.Code)
+            .OrderBy(cc => cc.Currency!.Code)
             .ToListAsync(cancellationToken);
 
-        return currencies.Select(c => CurrencyDto.From(c, _currentUser.LanguageCode)).ToList();
+        return links
+            .Select(cc => CurrencyDto.From(cc.Currency!, _currentUser.LanguageCode, isDefault: cc.IsDefault))
+            .ToList();
     }
 }
 
-/// <summary>Replaces the whole currency list for a country in one call.</summary>
-public sealed record SetCountryCurrenciesCommand(Guid CountryId, IReadOnlyList<Guid> CurrencyIds)
+/// <summary>
+/// Replaces the whole currency list for a country in one call, and says which one is its main
+/// currency — the one orders are set up in. Without <see cref="DefaultCurrencyId"/> the current main
+/// currency is kept if it is still offered, and otherwise one is picked for the country.
+/// </summary>
+public sealed record SetCountryCurrenciesCommand(
+    Guid CountryId,
+    IReadOnlyList<Guid> CurrencyIds,
+    Guid? DefaultCurrencyId = null)
     : IRequest<IReadOnlyList<CurrencyDto>>;
 
 public sealed class SetCountryCurrenciesCommandValidator
@@ -376,6 +392,11 @@ public sealed class SetCountryCurrenciesCommandValidator
     {
         RuleFor(c => c.CountryId).NotEmpty();
         RuleFor(c => c.CurrencyIds).NotNull();
+
+        RuleFor(c => c.DefaultCurrencyId)
+            .Must((command, id) => command.CurrencyIds.Contains(id!.Value))
+            .When(c => c.DefaultCurrencyId is not null && c.CurrencyIds is not null)
+            .WithMessage("The main currency has to be one of the country's currencies.");
     }
 }
 
@@ -444,17 +465,46 @@ public sealed class SetCountryCurrenciesCommandHandler
             });
         }
 
+        // Cleared first and saved, so the one-main-currency index never sees two at once.
+        if (request.DefaultCurrencyId is not null)
+        {
+            foreach (var mapping in existing.Where(m => m.IsDefault && m.CurrencyId != request.DefaultCurrencyId))
+            {
+                mapping.IsDefault = false;
+            }
+        }
+
         await _lookups.SaveAsync(cancellationToken);
+
+        if (request.DefaultCurrencyId is { } defaultId)
+        {
+            var main = await _db.CountryCurrencies
+                .FirstAsync(cc => cc.CountryId == request.CountryId && cc.CurrencyId == defaultId, cancellationToken);
+            if (!main.IsDefault)
+            {
+                main.IsDefault = true;
+                await _lookups.SaveAsync(cancellationToken);
+            }
+        }
+
+        // Whatever was sent, the country ends with exactly one main currency (if it has any).
+        await CountryDefaultCurrencies.EnsureAsync(_db, [request.CountryId], cancellationToken);
+
+        var mainCurrencyId = await _db.CountryCurrencies
+            .Where(cc => cc.CountryId == request.CountryId && cc.IsDefault)
+            .Select(cc => (Guid?)cc.CurrencyId)
+            .FirstOrDefaultAsync(cancellationToken);
+
         await _lookups.AuditAsync(
             "CountryCurrencies.Updated",
             nameof(Country),
             request.CountryId,
-            new { CurrencyIds = requested },
+            new { CurrencyIds = requested, MainCurrencyId = mainCurrencyId },
             cancellationToken);
 
         return known
             .OrderBy(c => c.Code)
-            .Select(c => CurrencyDto.From(c, _lookups.Language))
+            .Select(c => CurrencyDto.From(c, _lookups.Language, isDefault: c.Id == mainCurrencyId))
             .ToList();
     }
 }

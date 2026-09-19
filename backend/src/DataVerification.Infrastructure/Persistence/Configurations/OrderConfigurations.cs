@@ -48,9 +48,9 @@ public sealed class OrderConfiguration : EntityConfigurationBase<Order>
             .HasForeignKey(o => o.CurrencyId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(o => o.Wallet)
+        builder.HasMany(o => o.Wallets)
             .WithOne(w => w.Order)
-            .HasForeignKey<Wallet>(w => w.OrderId)
+            .HasForeignKey(w => w.OrderId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.Ignore(o => o.IsSetupComplete);
@@ -73,7 +73,8 @@ public sealed class WalletConfiguration : EntityConfigurationBase<Wallet>
             .HasForeignKey(w => w.CurrencyId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasIndex(w => w.OrderId).IsUnique();
+        // One wallet per currency on an order.
+        builder.HasIndex(w => new { w.OrderId, w.CurrencyId }).IsUnique();
 
         builder.Ignore(w => w.LedgerBalance);
     }

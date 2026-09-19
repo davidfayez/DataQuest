@@ -173,6 +173,19 @@ export interface RequiredFileStatusDto {
   areFieldsComplete: boolean;
   /** The file extensions this document accepts, already resolved to the default if none. */
   allowedExtensions: string[];
+  /** Labelled reference files an administrator attached — examples or templates to look at. */
+  samples: RequiredFileSampleDto[];
+}
+
+/** A reference file on a required document, fetched through its own endpoint. */
+export interface RequiredFileSampleDto {
+  id: string;
+  requiredFileId: string;
+  /** In the applicant's language. */
+  label: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
 }
 
 export interface ApplicationDetailsDto {

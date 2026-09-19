@@ -6,8 +6,9 @@ using MediatR;
 namespace DataVerification.Application.Features.Admin.Settings;
 
 /// <summary>
-/// What the panel shows for the AI assistant. The key is never returned — only whether one is
-/// stored — so opening the page cannot leak it and a screenshot of it is harmless.
+/// What the panel shows for the AI assistant. The key is not part of this payload — only whether
+/// one is stored — so a caller with the view permission alone never receives it. The key itself is
+/// served separately, to those who may change it (<see cref="GetAiApiKeyQuery"/>).
 /// </summary>
 /// <param name="CanStore">
 /// False when the platform has no encryption key configured, so a provider key could not be stored
@@ -19,12 +20,16 @@ public sealed record AiAssistantSettingsDto(bool IsEnabled, string Model, bool H
 public sealed record GetAiAssistantSettingsQuery : IRequest<AiAssistantSettingsDto>;
 
 /// <summary>
+/// The stored Gemini key, in full, so the eye button on the settings page can show what is saved.
+/// </summary>
+public sealed record GetAiApiKeyQuery : IRequest<StoredApiKeyDto>;
+
+/// <summary>
 /// Saves the assistant's settings.
 /// </summary>
 /// <param name="ApiKey">
 /// Blank leaves the stored key alone, which is what lets an operator flip the switch or change the
-/// model without pasting the key again — and is the only way to save the page at all, since the
-/// key is never sent back to it.
+/// model without sending the key again.
 /// </param>
 /// <param name="ClearApiKey">
 /// Removes the stored key. Blank means "keep", so without this there would be no way to take a key
@@ -63,6 +68,7 @@ public sealed class UpdateAiAssistantSettingsCommandValidator
 
 public sealed class AiAssistantSettingsHandlers :
     IRequestHandler<GetAiAssistantSettingsQuery, AiAssistantSettingsDto>,
+    IRequestHandler<GetAiApiKeyQuery, StoredApiKeyDto>,
     IRequestHandler<UpdateAiAssistantSettingsCommand, AiAssistantSettingsDto>
 {
     private readonly IAiSettingsStore _store;
@@ -86,6 +92,28 @@ public sealed class AiAssistantSettingsHandlers :
         var settings = await _store.GetAsync(cancellationToken);
         return new AiAssistantSettingsDto(
             settings.IsEnabled, settings.Model, settings.HasApiKey, _protector.IsEnabled);
+    }
+
+    public async Task<StoredApiKeyDto> Handle(
+        GetAiApiKeyQuery request,
+        CancellationToken cancellationToken)
+    {
+        var key = await _store.GetApiKeyAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return new StoredApiKeyDto(null);
+        }
+
+        // Who looked is recorded; what they saw never is.
+        await _auditLogger.LogAsync(
+            "AiAssistantSettings.ApiKeyViewed",
+            "SiteSetting",
+            null,
+            new { Setting = "Gemini.ApiKey" },
+            cancellationToken);
+
+        return new StoredApiKeyDto(key);
     }
 
     public async Task<AiAssistantSettingsDto> Handle(

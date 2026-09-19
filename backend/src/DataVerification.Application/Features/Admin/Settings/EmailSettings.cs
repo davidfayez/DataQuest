@@ -28,6 +28,21 @@ public sealed record EmailSettingsDto(
     bool CanEdit);
 
 /// <summary>
+/// A provider key saved from the settings page, in full, for the operator who manages it.
+/// </summary>
+/// <param name="ApiKey">The stored key, or null when none is stored or it cannot be decrypted.</param>
+public sealed record StoredApiKeyDto(string? ApiKey);
+
+/// <summary>
+/// The SendGrid key saved on the settings page, so the eye button there can show what is stored.
+///
+/// Kept out of <see cref="GetEmailSettingsQuery"/> on purpose: that payload is readable with the
+/// view permission, while this one is served only to callers who may change the key. Only a key
+/// saved from the page is returned — one supplied through server configuration stays on the server.
+/// </summary>
+public sealed record GetEmailApiKeyQuery : IRequest<StoredApiKeyDto>;
+
+/// <summary>
 /// Sets or clears the SendGrid API key. Clearing it (an empty value) falls back to whatever
 /// configuration holds, which is how an operator undoes a mistake without a redeploy.
 /// </summary>
@@ -47,6 +62,7 @@ public sealed class UpdateEmailSettingsCommandValidator : AbstractValidator<Upda
 
 public sealed class EmailSettingsHandlers :
     IRequestHandler<GetEmailSettingsQuery, EmailSettingsDto>,
+    IRequestHandler<GetEmailApiKeyQuery, StoredApiKeyDto>,
     IRequestHandler<UpdateEmailSettingsCommand, EmailSettingsDto>
 {
     private readonly IEmailSettingsStore _store;
@@ -67,6 +83,28 @@ public sealed class EmailSettingsHandlers :
         GetEmailSettingsQuery request,
         CancellationToken cancellationToken) =>
         DescribeAsync(cancellationToken);
+
+    public async Task<StoredApiKeyDto> Handle(
+        GetEmailApiKeyQuery request,
+        CancellationToken cancellationToken)
+    {
+        var key = await _store.GetSendGridApiKeyAsync(cancellationToken);
+
+        if (key.Source is not SendGridKeySource.Database || string.IsNullOrWhiteSpace(key.Value))
+        {
+            return new StoredApiKeyDto(null);
+        }
+
+        // Who looked is recorded; what they saw never is.
+        await _auditLogger.LogAsync(
+            "Settings.EmailApiKeyViewed",
+            "SiteSetting",
+            null,
+            new { Setting = "SendGrid.ApiKey" },
+            cancellationToken);
+
+        return new StoredApiKeyDto(key.Value);
+    }
 
     public async Task<EmailSettingsDto> Handle(
         UpdateEmailSettingsCommand request,

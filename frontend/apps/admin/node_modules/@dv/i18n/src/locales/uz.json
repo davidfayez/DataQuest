@@ -142,14 +142,10 @@
   },
   "setup": {
     "title": "Buyurtmangizni sozlang",
-    "subtitle": "Hujjatlaringiz qayerda tasdiqlanishini va qaysi valyutada to‘layshini tanlang.",
+    "subtitle": "Hujjatlaringiz qayerda tasdiqlanishini va buyurtmangiz bo'yicha kim bilan bog'lanishimizni tanlang.",
     "countryLabel": "Tasdiqlash mamlakati",
     "countryPlaceholder": "Mamlakatni tanlang",
     "countryHint": "Bu sizga qaysi organlar va xizmatlar mavjudligini belgilaydi.",
-    "currencyLabel": "Valyuta",
-    "currencyPlaceholder": "Valyutani tanlang",
-    "currencyHint": "Hamyon shu valyutada ochiladi va keyinroq o‘zgartirib bo‘lmaydi.",
-    "selectCountryFirst": "Avval mamlakatni tanlang",
     "contactNameLabel": "Bogʻlanish uchun shaxs ismi",
     "contactNamePlaceholder": "Toʻliq ism",
     "contactNameHint": "Ushbu buyurtma boʻyicha kim bilan bogʻlanishimiz kerak.",
@@ -158,7 +154,7 @@
     "contactPhoneHint": "Mamlakat kodini tanlang, soʻng raqamni kodsiz kiriting.",
     "submit": "Tasdiqlash va hamyonni ochish",
     "warningTitle": "Bu tanlov doimiy",
-    "warningBody": "Hamyon ochilgach, tasdiqlash mamlakati va valyuta ushbu buyurtma uchun qat’iy belgilanadi.",
+    "warningBody": "Hamyoningiz ochilgach, ushbu buyurtma uchun tasdiqlash davlati o‘zgarmaydi.",
     "successTitle": "Buyurtmangiz tayyor",
     "successBody": "Hamyon {{currency}} valyutasida ochildi. Endi birinchi arizangizni yaratishingiz mumkin."
   },
@@ -169,7 +165,6 @@
     "orderNumberLength": "Elektron pochtangizdagi to‘liq buyurtma raqamini kiriting.",
     "passwordRequired": "Parolingizni kiriting.",
     "countryRequired": "Tasdiqlash mamlakatini tanlang.",
-    "currencyRequired": "Valyutani tanlang.",
     "contactNameRequired": "Bogʻlanish uchun shaxs ismini kiriting.",
     "contactNameTooLong": "Ism 200 belgidan oshmasligi kerak.",
     "contactPhoneRequired": "Bogʻlanish uchun telefon raqamini kiriting.",
@@ -312,7 +307,9 @@
       "replaceHint": "almashtirish uchun fayl tanlang",
       "preview": "Ko‘rish",
       "download": "Yuklab olish",
-      "previewUnavailable": "Bu turdagi fayl bu yerda ko‘rsatilmaydi. Ochish uchun yuklab oling."
+      "previewUnavailable": "Bu turdagi fayl bu yerda ko‘rsatilmaydi. Ochish uchun yuklab oling.",
+      "referenceDocuments": "Namuna hujjatlar",
+      "referenceDocumentsHint": "Ushbu hujjatni tayyorlashga yordam beradigan namunalar."
     },
     "review": {
       "title": "Arizangizni ko‘rib chiqing",
@@ -420,7 +417,14 @@
     "success_one": "{{count}} ariza to‘landi.",
     "success_other": "{{count}} ariza to‘landi.",
     "addTheDifference": "Hisobni to‘ldirish",
-    "shortfallHint": "Yana {{amount}} kerak. To‘ldirilgan mablag‘ sarflashdan oldin jamoamiz tomonidan tasdiqlanadi."
+    "shortfallHint": "Yana {{amount}} kerak. To‘ldirilgan mablag‘ sarflashdan oldin jamoamiz tomonidan tasdiqlanadi.",
+    "payFrom": "Qayerdan to'lash",
+    "notSoldInCurrency": "Bu xizmatlar {{currency}} da sotilmaydi. Boshqa balansni tanlang.",
+    "repricedNotice": "{{currency}} da to'lash bu arizalarni xizmatlarning {{currency}} narxlari bo'yicha hisoblaydi.",
+    "notSoldShort": "Bu valyutada mavjud emas",
+    "totalIn": "Jami {{amount}}",
+    "balanceIs": "Balans {{amount}}",
+    "notEnough": "yetarli emas"
   },
   "wallet": {
     "title": "Hamyon",
@@ -522,7 +526,25 @@
     "chooseMethodInType": "Qaysi {{type}} dan foydalanmoqchisiz?",
     "change": "O‘zgartirish",
     "selectMethod": "To‘lov usulini tanlang",
-    "methodsAvailable": "{{n}} ta tanlov"
+    "methodsAvailable": "{{n}} ta tanlov",
+    "documentsTitle": "Talab qilinadigan hujjatlar",
+    "documentsHint": "Ushbu to'lov usuli har bir so'rov bilan bularni talab qiladi.",
+    "chooseFiles": "Fayllarni tanlash",
+    "documentLimits": "{{count}} tagacha fayl · har biri {{size}} · {{types}}",
+    "documentWrongType": "{{name}} bu hujjat qabul qiladigan formatda emas.",
+    "documentTooLarge": "{{name}} hajmi {{size}} dan katta.",
+    "needDocument": "{{name}} ni biriktiring",
+    "needDetails": "{{name}} uchun ma'lumotlarni to'ldiring",
+    "detailsProvided": "Siz kiritgan ma'lumotlar",
+    "mainCurrency": "Asosiy",
+    "balances": "Balanslaringiz",
+    "showStatement": "Ko'chirmani ko'rsatish",
+    "addFundsSubtitle": "Avval to'ldiriladigan balansni, so'ng pulni qanday yuborishingizni tanlang.",
+    "depositsUnavailable": "Hozircha mablag' qo'shish imkoni yo'q.",
+    "withdrawalsUnavailable": "Hozircha pul yechib olish imkoni yo'q.",
+    "nothingToWithdraw": "Balanslaringizning hech birida yechib olinadigan pul yo'q.",
+    "chooseBalanceToFund": "Qaysi balansga qo'shyapsiz?",
+    "chooseBalanceToWithdraw": "Qaysi balansdan yechyapsiz?"
   },
   "details": {
     "backToList": "Arizalarimga qaytish",

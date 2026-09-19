@@ -102,14 +102,14 @@ public sealed class CascadeQueryHandlers :
             throw new NotFoundException("Country", request.CountryId);
         }
 
-        var currencies = await _db.CountryCurrencies
+        var links = await _db.CountryCurrencies
             .AsNoTracking()
+            .Include(cc => cc.Currency)
             .Where(cc => cc.CountryId == request.CountryId && cc.Currency!.IsActive)
-            .Select(cc => cc.Currency!)
-            .OrderBy(c => c.Code)
+            .OrderBy(cc => cc.Currency!.Code)
             .ToListAsync(cancellationToken);
 
-        return currencies.Select(c => CurrencyDto.From(c, Language)).ToList();
+        return links.Select(cc => CurrencyDto.From(cc.Currency!, Language, isDefault: cc.IsDefault)).ToList();
     }
 
 
@@ -233,6 +233,7 @@ public sealed class CascadeQueryHandlers :
             .AsSplitQuery()
             .Include(s => s.RequiredFiles).ThenInclude(f => f.Fields).ThenInclude(f => f.Options)
             .Include(s => s.RequiredFiles).ThenInclude(f => f.AllowedFileTypes)
+            .Include(s => s.RequiredFiles).ThenInclude(f => f.Samples)
             .Include(s => s.OutputLanguages)
             .Include(s => s.Costs)
             .ThenInclude(c => c.Currency)
@@ -240,11 +241,13 @@ public sealed class CascadeQueryHandlers :
                 s.VerificationAuthorityId == request.VerificationAuthorityId
                 && s.SubTransactionTypeId == request.SubTransactionTypeId
                 && s.IsActive
-                && s.Costs.Any(c => c.CurrencyId == currencyId))
+                && s.Costs.Any(c => c.CurrencyId == currencyId && c.IsActive))
             .OrderBy(s => s.NameEn)
             .ToListAsync(cancellationToken);
 
-        return serviceTypes.Select(s => ServiceTypeDto.From(s, Language, currencyId)).ToList();
+        return serviceTypes
+            .Select(s => ServiceTypeDto.From(s, Language, currencyId, forApplicant: true))
+            .ToList();
     }
 
     /// <summary>

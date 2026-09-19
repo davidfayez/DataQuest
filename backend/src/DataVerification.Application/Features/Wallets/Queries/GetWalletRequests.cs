@@ -2,6 +2,7 @@
 using DataVerification.Application.Common.Interfaces;
 using DataVerification.Application.Common.Models;
 using DataVerification.Application.Features.Payments;
+using DataVerification.Domain.Common;
 using DataVerification.Domain.Entities;
 using DataVerification.Domain.Enums;
 using MediatR;
@@ -81,10 +82,12 @@ public sealed class WalletRequestQueryHandlers :
             ?? throw new NotFoundException(nameof(WalletRequest), request.RequestId);
 
         var files = await LoadFilesAsync([row.Id], cancellationToken);
+        var values = await LoadValuesAsync(row.Id, cancellationToken);
 
         return row.ToDto(
             _currentUser.LanguageCode,
-            files.TryGetValue(row.Id, out var attached) ? attached : []);
+            files.TryGetValue(row.Id, out var attached) ? attached : [],
+            values);
     }
 
     public Task<PagedResult<WalletRequestDto>> Handle(
@@ -114,10 +117,12 @@ public sealed class WalletRequestQueryHandlers :
             ?? throw new NotFoundException(nameof(WalletRequest), request.RequestId);
 
         var files = await LoadFilesAsync([row.Id], cancellationToken);
+        var values = await LoadValuesAsync(row.Id, cancellationToken);
 
         return row.ToDto(
             _currentUser.LanguageCode,
-            files.TryGetValue(row.Id, out var attached) ? attached : []);
+            files.TryGetValue(row.Id, out var attached) ? attached : [],
+            values);
     }
 
     public Task<PagedResult<WalletRequestDto>> Handle(
@@ -188,23 +193,55 @@ public sealed class WalletRequestQueryHandlers :
             .Select(file => new
             {
                 file.WalletRequestId,
-                Dto = new WalletRequestFileDto(
-                    file.Id,
-                    file.FileName,
-                    file.ContentType,
-                    file.SizeBytes,
-                    file.CreatedAtUtc),
+                file.Id,
+                file.FileName,
+                file.ContentType,
+                file.SizeBytes,
+                file.CreatedAtUtc,
+                file.RequiredFileId,
+                file.DocumentNameAr,
+                file.DocumentNameEn,
             })
             .ToListAsync(cancellationToken);
+
+        var language = _currentUser.LanguageCode;
 
         return files
             .GroupBy(file => file.WalletRequestId)
             .ToDictionary(
                 group => group.Key,
                 group => (IReadOnlyList<WalletRequestFileDto>)group
-                    .Select(file => file.Dto)
                     .OrderBy(file => file.CreatedAtUtc)
+                    .Select(file => new WalletRequestFileDto(
+                        file.Id,
+                        file.FileName,
+                        file.ContentType,
+                        file.SizeBytes,
+                        file.CreatedAtUtc,
+                        file.RequiredFileId,
+                        file.RequiredFileId is null
+                            ? null
+                            : LocalizedText.Resolve(file.DocumentNameAr, file.DocumentNameEn, language)))
                     .ToList());
+    }
+
+    /// <summary>
+    /// The details filled in beside a request's documents, in the order they were shown. Only a
+    /// single request's page asks for them; the queues have no room to show them.
+    /// </summary>
+    private async Task<IReadOnlyList<WalletRequestDocumentValueDto>> LoadValuesAsync(
+        Guid requestId,
+        CancellationToken cancellationToken)
+    {
+        var values = await _db.WalletRequestDocumentValues
+            .AsNoTracking()
+            .Where(value => value.WalletRequestId == requestId)
+            .ToListAsync(cancellationToken);
+
+        return values
+            .OrderBy(value => value.SortOrder)
+            .Select(value => WalletRequestDocumentValueDto.From(value, _currentUser.LanguageCode))
+            .ToList();
     }
 
     private async Task<PagedResult<WalletRequestDto>> LoadAsync(

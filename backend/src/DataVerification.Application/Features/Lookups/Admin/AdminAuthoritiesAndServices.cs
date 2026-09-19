@@ -229,9 +229,18 @@ public sealed record UpsertServiceTypeCommand(
     IReadOnlyList<ServiceTypeCostInput> Costs,
     IReadOnlyList<RequiredFileInput> RequiredFiles,
     IReadOnlyList<string> OutputLanguages,
-    string? Code = null) : IRequest<ServiceTypeDto>;
+    string? Code = null,
+    bool HideDescription = false) : IRequest<ServiceTypeDto>;
 
-public sealed record ServiceTypeCostInput(Guid CurrencyId, decimal Cost, decimal ExpressCost);
+/// <param name="IsActive">
+/// Whether the service is sold in this currency. Off keeps the price but stops offering the service
+/// to orders in the currency. Defaults to on, so a client that predates the switch changes nothing.
+/// </param>
+public sealed record ServiceTypeCostInput(
+    Guid CurrencyId,
+    decimal Cost,
+    decimal ExpressCost,
+    bool IsActive = true);
 
 /// <param name="AllowedFileTypes">
 /// Codes from <c>DocumentFileTypes</c> — the upload formats this document accepts. An empty set
@@ -290,6 +299,13 @@ public sealed class UpsertServiceTypeCommandValidator : AbstractValidator<Upsert
         RuleFor(c => c.Costs).NotEmpty()
             .WithMessage("Add at least one currency cost.");
 
+        // Every currency switched off would leave a service nobody can buy; that is what the
+        // service's own Active switch is for.
+        RuleFor(c => c.Costs)
+            .Must(costs => costs.Any(cost => cost.IsActive))
+            .When(c => c.Costs is { Count: > 0 })
+            .WithMessage("Keep at least one currency active.");
+
         // A service with no documents asks the applicant to upload nothing, and then the review
         // queue receives an application with nothing to verify.
         RuleFor(c => c.RequiredFiles).NotEmpty()
@@ -311,65 +327,14 @@ public sealed class UpsertServiceTypeCommandValidator : AbstractValidator<Upsert
             cost.RuleFor(x => x.ExpressCost).GreaterThanOrEqualTo(0);
         });
 
-        // An express price is only meaningful when express is actually offered.
+        // An express price is only meaningful when express is actually offered, and only for a
+        // currency the service is sold in.
         RuleFor(c => c)
-            .Must(c => !c.EnableExpress || c.Costs.All(x => x.ExpressCost > 0))
+            .Must(c => !c.EnableExpress || c.Costs.Where(x => x.IsActive).All(x => x.ExpressCost > 0))
             .WithMessage("Set an express cost greater than zero for every currency when express delivery is enabled.")
             .OverridePropertyName(nameof(UpsertServiceTypeCommand.Costs));
 
-        RuleForEach(c => c.RequiredFiles).ChildRules(file =>
-        {
-            file.RuleFor(f => f.MaxFiles).InclusiveBetween(1, 20);
-
-            // A document that accepts nothing could never be satisfied, so an empty set means the
-            // default rather than "refuse everything" — but a set of codes we do not recognise is
-            // a mistake worth reporting rather than quietly ignoring.
-            file.RuleFor(f => f.AllowedFileTypes)
-                .Must(codes => codes is null || codes.All(DocumentFileTypes.IsSupported))
-                .WithMessage(
-                    $"Document formats must be drawn from: {string.Join(", ", DocumentFileTypes.All)}.");
-            file.RuleFor(f => f.MaxSizeBytes)
-                .GreaterThan(0).When(f => f.MaxSizeBytes.HasValue)
-                .WithMessage("A document maximum size must be greater than zero.");
-
-            file.RuleForEach(f => f.Fields).ChildRules(field =>
-            {
-                field.RuleFor(x => x.NameAr).NotEmpty().MaximumLength(200);
-                field.RuleFor(x => x.NameEn).NotEmpty().MaximumLength(200);
-                field.RuleFor(x => x.Pattern).MaximumLength(400);
-
-                field.RuleFor(x => x.MaxLength)
-                    .GreaterThanOrEqualTo(x => x.MinLength ?? 0)
-                    .When(x => x.MaxLength.HasValue)
-                    .WithMessage("A maximum length cannot be below the minimum length.");
-
-                field.RuleFor(x => x.MaxValue)
-                    .GreaterThanOrEqualTo(x => x.MinValue!.Value)
-                    .When(x => x.MinValue.HasValue && x.MaxValue.HasValue)
-                    .WithMessage("A maximum value cannot be below the minimum value.");
-
-                field.RuleFor(x => x.MaxDate)
-                    .GreaterThanOrEqualTo(x => x.MinDate!.Value)
-                    .When(x => x.MinDate.HasValue && x.MaxDate.HasValue)
-                    .WithMessage("A latest date cannot be before the earliest date.");
-
-                // A dropdown with nothing to pick leaves a required field unanswerable.
-                field.RuleFor(x => x.Options)
-                    .NotEmpty()
-                    .When(x => x.FieldType == RequiredFieldType.Dropdown)
-                    .WithMessage("Add at least one option to a dropdown field.");
-
-                field.RuleForEach(x => x.Options).ChildRules(option =>
-                {
-                    option.RuleFor(o => o.Value).NotEmpty().MaximumLength(200);
-                    option.RuleFor(o => o.LabelAr).NotEmpty().MaximumLength(200);
-                    option.RuleFor(o => o.LabelEn).NotEmpty().MaximumLength(200);
-                });
-            });
-
-            file.RuleFor(f => f.NameAr).NotEmpty().MaximumLength(200);
-            file.RuleFor(f => f.NameEn).NotEmpty().MaximumLength(200);
-        });
+        RuleForEach(c => c.RequiredFiles).SetValidator(new RequiredFileInputValidator());
     }
 }
 
@@ -380,11 +345,16 @@ public sealed class ServiceTypeAdminHandlers :
 {
     private readonly IApplicationDbContext _db;
     private readonly AdminLookupService _lookups;
+    private readonly IFileStorage _storage;
 
-    public ServiceTypeAdminHandlers(IApplicationDbContext db, AdminLookupService lookups)
+    public ServiceTypeAdminHandlers(
+        IApplicationDbContext db,
+        AdminLookupService lookups,
+        IFileStorage storage)
     {
         _db = db;
         _lookups = lookups;
+        _storage = storage;
     }
 
     public Task<PagedResult<ServiceTypeDto>> Handle(
@@ -400,6 +370,7 @@ public sealed class ServiceTypeAdminHandlers :
             .AsSplitQuery()
             .Include(s => s.RequiredFiles).ThenInclude(f => f.Fields).ThenInclude(f => f.Options)
             .Include(s => s.RequiredFiles).ThenInclude(f => f.AllowedFileTypes)
+            .Include(s => s.RequiredFiles).ThenInclude(f => f.Samples)
             .Include(s => s.OutputLanguages)
             .Include(s => s.Costs)
             .ThenInclude(c => c.Currency)
@@ -462,8 +433,10 @@ public sealed class ServiceTypeAdminHandlers :
         if (request.Id is { } id)
         {
             serviceType = await _db.ServiceTypes
+                .AsSplitQuery()
                 .Include(s => s.RequiredFiles).ThenInclude(f => f.Fields).ThenInclude(f => f.Options)
-            .Include(s => s.RequiredFiles).ThenInclude(f => f.AllowedFileTypes)
+                .Include(s => s.RequiredFiles).ThenInclude(f => f.AllowedFileTypes)
+                .Include(s => s.RequiredFiles).ThenInclude(f => f.Samples)
                 .Include(s => s.OutputLanguages)
                 .Include(s => s.Costs)
                 .ThenInclude(c => c.Currency)
@@ -509,14 +482,31 @@ public sealed class ServiceTypeAdminHandlers :
         serviceType.ExpressNoteEn = NullIfBlank(request.ExpressNoteEn);
         serviceType.IsActive = request.IsActive;
         serviceType.ShowOnLanding = request.ShowOnLanding;
+        serviceType.HideDescription = request.HideDescription;
 
         SyncCosts(serviceType, requestedCosts, request.EnableExpress);
 
         SyncOutputLanguages(serviceType, PlatformLanguages.Normalize(request.OutputLanguages));
 
-        await SyncRequiredFilesAsync(serviceType, request.RequiredFiles, cancellationToken);
+        var discardedFiles = await new RequiredDocumentSync(_db).SyncAsync(
+            serviceType.RequiredFiles,
+            input => new ServiceTypeRequiredFile
+            {
+                ServiceTypeId = serviceType.Id,
+                NameAr = input.NameAr,
+                NameEn = input.NameEn,
+            },
+            request.RequiredFiles,
+            cancellationToken);
 
         await _lookups.SaveAsync(cancellationToken);
+
+        // The reference files of documents that were removed. Deleted only once the save has gone
+        // through, so a failed save never leaves a stored row pointing at nothing.
+        foreach (var path in discardedFiles)
+        {
+            await _storage.DeleteAsync(path, cancellationToken);
+        }
         await _lookups.AuditAsync(
             request.Id is null ? "ServiceType.Created" : "ServiceType.Updated",
             nameof(ServiceType),
@@ -658,173 +648,14 @@ public sealed class ServiceTypeAdminHandlers :
 
             target.Cost = input.Cost;
             target.ExpressCost = enableExpress ? input.ExpressCost : 0m;
+            target.IsActive = input.IsActive;
         }
 
-        // Keep the scalar columns as a convenient default for landing/admin list display.
-        var primary = serviceType.Costs.OrderBy(c => c.Cost).First();
+        // Keep the scalar columns as a convenient default for landing/admin list display, from a
+        // price that is actually on sale.
+        var primary = serviceType.Costs.Where(c => c.IsActive).OrderBy(c => c.Cost).FirstOrDefault()
+            ?? serviceType.Costs.OrderBy(c => c.Cost).First();
         serviceType.Cost = primary.Cost;
         serviceType.ExpressCost = enableExpress ? primary.ExpressCost : 0m;
-    }
-
-    /// <summary>
-    /// Reconciles the required-file list. A definition already referenced by an uploaded file is
-    /// kept even if the admin dropped it, so historical uploads keep their meaning.
-    /// </summary>
-    private async Task SyncRequiredFilesAsync(
-        ServiceType serviceType,
-        IReadOnlyList<RequiredFileInput> requested,
-        CancellationToken cancellationToken)
-    {
-        var keptIds = requested.Where(f => f.Id.HasValue).Select(f => f.Id!.Value).ToHashSet();
-
-        foreach (var existing in serviceType.RequiredFiles.ToList())
-        {
-            if (keptIds.Contains(existing.Id))
-            {
-                continue;
-            }
-
-            var referenced = await _db.ApplicationFiles
-                .AnyAsync(f => f.RequiredFileId == existing.Id, cancellationToken);
-
-            if (referenced)
-            {
-                existing.IsMandatory = false;
-                existing.IsActive = false;
-                continue;
-            }
-
-            _db.ServiceTypeRequiredFiles.Remove(existing);
-            serviceType.RequiredFiles.Remove(existing);
-        }
-
-        foreach (var input in requested)
-        {
-            var target = input.Id.HasValue
-                ? serviceType.RequiredFiles.FirstOrDefault(f => f.Id == input.Id.Value)
-                : null;
-
-            if (target is null)
-            {
-                target = new ServiceTypeRequiredFile
-                {
-                    ServiceTypeId = serviceType.Id,
-                    NameAr = input.NameAr,
-                    NameEn = input.NameEn,
-                };
-                serviceType.RequiredFiles.Add(target);
-            }
-
-            target.NameAr = input.NameAr.Trim();
-            target.NameEn = input.NameEn.Trim();
-            target.IsMandatory = input.IsMandatory;
-            target.IsActive = true;
-            target.MaxSizeBytes = input.MaxSizeBytes;
-            target.MaxFiles = input.MaxFiles;
-
-            SyncAllowedFileTypes(target, DocumentFileTypes.Normalize(input.AllowedFileTypes));
-            SyncFields(target, input.Fields);
-        }
-    }
-
-    /// <summary>Replaces the formats a document accepts with exactly the requested set.</summary>
-    private void SyncAllowedFileTypes(ServiceTypeRequiredFile document, IReadOnlyList<string> requested)
-    {
-        foreach (var existing in document.AllowedFileTypes
-                     .Where(t => !requested.Contains(t.FileTypeCode, StringComparer.OrdinalIgnoreCase))
-                     .ToList())
-        {
-            _db.RequiredFileAllowedTypes.Remove(existing);
-            document.AllowedFileTypes.Remove(existing);
-        }
-
-        var present = document.AllowedFileTypes
-            .Select(t => t.FileTypeCode)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var code in requested.Where(code => !present.Contains(code)))
-        {
-            document.AllowedFileTypes.Add(new RequiredFileAllowedType
-            {
-                RequiredFileId = document.Id,
-                FileTypeCode = code,
-            });
-        }
-    }
-
-    /// <summary>Replaces a document custom fields with exactly the requested set.</summary>
-    private void SyncFields(ServiceTypeRequiredFile document, IReadOnlyList<RequiredFileFieldInput> requested)
-    {
-        var keptIds = requested.Where(f => f.Id.HasValue).Select(f => f.Id!.Value).ToHashSet();
-
-        foreach (var existing in document.Fields.Where(f => !keptIds.Contains(f.Id)).ToList())
-        {
-            _db.RequiredFileFields.Remove(existing);
-            document.Fields.Remove(existing);
-        }
-
-        foreach (var input in requested)
-        {
-            var target = input.Id.HasValue
-                ? document.Fields.FirstOrDefault(f => f.Id == input.Id.Value)
-                : null;
-
-            if (target is null)
-            {
-                target = new RequiredFileField
-                {
-                    RequiredFileId = document.Id,
-                    NameAr = input.NameAr,
-                    NameEn = input.NameEn,
-                };
-                document.Fields.Add(target);
-            }
-
-            target.NameAr = input.NameAr.Trim();
-            target.NameEn = input.NameEn.Trim();
-            target.FieldType = input.FieldType;
-            target.IsRequired = input.IsRequired;
-            target.SortOrder = input.SortOrder;
-            target.IsActive = true;
-
-            // Only the rules belonging to the chosen type are kept, so switching a type cannot
-            // leave a stale bound quietly rejecting valid input.
-            var isText = input.FieldType == RequiredFieldType.Text;
-            var isNumber = input.FieldType == RequiredFieldType.Number;
-            var isDate = input.FieldType == RequiredFieldType.Date;
-
-            target.MinLength = isText ? input.MinLength : null;
-            target.MaxLength = isText ? input.MaxLength : null;
-            target.Pattern = isText && !string.IsNullOrWhiteSpace(input.Pattern) ? input.Pattern.Trim() : null;
-            target.MinValue = isNumber ? input.MinValue : null;
-            target.MaxValue = isNumber ? input.MaxValue : null;
-            target.DateRule = isDate ? input.DateRule : RequiredFieldDateRule.Any;
-            target.MinDate = isDate ? input.MinDate : null;
-            target.MaxDate = isDate ? input.MaxDate : null;
-
-            SyncOptions(target, input.FieldType == RequiredFieldType.Dropdown ? input.Options : []);
-        }
-    }
-
-    private void SyncOptions(RequiredFileField field, IReadOnlyList<RequiredFileFieldOptionInput> requested)
-    {
-        foreach (var existing in field.Options.ToList())
-        {
-            _db.RequiredFileFieldOptions.Remove(existing);
-            field.Options.Remove(existing);
-        }
-
-        var order = 0;
-        foreach (var option in requested)
-        {
-            field.Options.Add(new RequiredFileFieldOption
-            {
-                RequiredFileFieldId = field.Id,
-                Value = option.Value.Trim(),
-                LabelAr = option.LabelAr.Trim(),
-                LabelEn = option.LabelEn.Trim(),
-                SortOrder = order++,
-            });
-        }
     }
 }

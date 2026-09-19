@@ -763,13 +763,12 @@ export function ApplicationsPage() {
           setSelected(new Set());
           setPaidCount(count);
         }}
-        // Adding funds is the wallet's business, and the wallet page is where the balance, the
-        // pending requests and the history already are — so this hands over rather than growing a
-        // second copy of the deposit flow here. The shortfall travels in the URL so the amount is
-        // filled in on arrival.
-        onTopUp={(shortfall) => {
+        // Adding funds is the wallet's business, so this hands over to its Add funds page rather
+        // than growing a second copy of the deposit flow here. The balance and the shortfall travel
+        // in the URL, so both are filled in on arrival.
+        onTopUp={(shortfall, currencyId) => {
           setPayTargets([]);
-          navigate(`/${lang}/wallet?topUp=${encodeURIComponent(shortfall.toFixed(2))}`);
+          navigate(`/${lang}/wallet/add-funds?currency=${currencyId}&amount=${encodeURIComponent(shortfall.toFixed(2))}`);
         }}
       />
 

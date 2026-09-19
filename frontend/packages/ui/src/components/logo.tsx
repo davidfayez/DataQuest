@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import bundledLogoUrl from '../assets/logo.jpeg';
 
 /**
@@ -26,20 +26,28 @@ export function LogoSourceProvider({
  * on both light and dark surfaces.
  *
  * Falls back to the bundled seal whenever no logo has been uploaded — so the header is never
- * empty, and removing the upload restores the original artwork rather than leaving a gap.
+ * empty, and removing the upload restores the original artwork rather than leaving a gap. The same
+ * fallback applies when an uploaded logo fails to load, rather than drawing a broken image.
  */
 export function Logo({ size = 32 }: { size?: number }) {
   const uploaded = useContext(LogoSourceContext);
+  // Remembered per URL, so a replaced logo (which arrives under a new version) is tried afresh.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+
+  const src = uploaded && uploaded !== failedSrc ? uploaded : bundledLogoUrl;
 
   return (
     <img
-      src={uploaded ?? bundledLogoUrl}
+      src={src}
       width={size}
       height={size}
       alt=""
       aria-hidden
       className="shrink-0 rounded-full object-cover"
       style={{ width: size, height: size }}
+      onError={() => {
+        if (src === uploaded) setFailedSrc(uploaded);
+      }}
     />
   );
 }

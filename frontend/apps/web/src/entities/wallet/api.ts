@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient, queryKeys } from '@/shared/api/client';
+import type { RequiredFileFieldDto, RequiredFileSampleDto } from '@/entities/application/types';
 
 export enum WalletTransactionType {
   TopUp = 0,
@@ -101,6 +102,20 @@ export interface PaymentMethodOptionDto {
   requiresProofDocument: boolean;
   requiresReferenceNumber: boolean;
   accounts: PaymentAccountOptionDto[];
+  /** Documents asked for with every deposit through this method, with their details. */
+  requiredFiles: PaymentMethodDocumentDto[];
+}
+
+/** One document a payment method asks for, with the limits the server enforces on it. */
+export interface PaymentMethodDocumentDto {
+  id: string;
+  name: string;
+  isMandatory: boolean;
+  maxSizeBytes: number;
+  maxFiles: number;
+  fields: RequiredFileFieldDto[];
+  allowedExtensions: string[];
+  samples: RequiredFileSampleDto[];
 }
 
 export interface WalletRequestFileDto {
@@ -109,6 +124,17 @@ export interface WalletRequestFileDto {
   contentType: string;
   sizeBytes: number;
   createdAtUtc: string;
+  /** The payment method document this file was sent for; null for general proof of transfer. */
+  requiredFileId: string | null;
+  documentName: string | null;
+}
+
+/** A detail the applicant filled in beside one of the method's documents. */
+export interface WalletRequestDocumentValueDto {
+  requiredFileId: string;
+  documentName: string;
+  fieldName: string;
+  value: string;
 }
 
 export interface WalletRequestDto {
@@ -142,6 +168,7 @@ export interface WalletRequestDto {
   confirmedAmount: number | null;
   confirmedReference: string | null;
   files: WalletRequestFileDto[];
+  documentValues: WalletRequestDocumentValueDto[];
 }
 
 export interface PagedResult<T> {
@@ -154,21 +181,43 @@ export interface PagedResult<T> {
   hasNext: boolean;
 }
 
+/** One of the order's balances: one per currency its country offers. */
+export interface WalletBalanceDto {
+  currencyId: string;
+  currencyCode: string;
+  currencySymbol: string;
+  currencyName: string;
+  balance: number;
+  /** The order's main currency — the one applications are first priced in. */
+  isMain: boolean;
+  /** Null until money has moved in this currency. */
+  walletId: string | null;
+}
+
 export interface WalletStatementDto {
+  /** The balance whose ledger is shown. */
   wallet: WalletSummaryDto;
   ledger: PagedResult<WalletTransactionDto>;
   features: WalletFeaturesDto;
   pendingRequests: WalletRequestDto[];
+  /** Every balance the order can hold, main currency first. */
+  balances: WalletBalanceDto[];
 }
 
 export const WALLET_PAGE_SIZE = 20;
 
-export function useWallet(page = 1, type?: WalletTransactionType) {
+/** Every balance, plus a page of one currency's ledger (the main currency when none is given). */
+export function useWallet(page = 1, type?: WalletTransactionType, currencyId?: string) {
   return useQuery({
-    queryKey: queryKeys.wallet(page, type),
+    queryKey: queryKeys.wallet(page, type, currencyId),
     queryFn: () =>
       apiClient.get<WalletStatementDto>('orders/me/wallet', {
-        query: { page, pageSize: WALLET_PAGE_SIZE, ...(type === undefined ? {} : { type }) },
+        query: {
+          page,
+          pageSize: WALLET_PAGE_SIZE,
+          ...(type === undefined ? {} : { type }),
+          ...(currencyId ? { currencyId } : {}),
+        },
       }),
     // Paging through the ledger should not blank the table between pages.
     placeholderData: (previous) => previous,
@@ -237,30 +286,43 @@ export function useCreateWalletRequest() {
   const invalidate = useWalletInvalidation();
 
   return useMutation({
-    mutationFn: (body: { type: WalletRequestType; amount: number; note?: string }) =>
+    mutationFn: (body: { type: WalletRequestType; amount: number; note?: string; currencyId?: string }) =>
       apiClient.post<WalletRequestDto>('orders/me/wallet/requests', {
         type: body.type,
         amount: body.amount,
         note: body.note?.trim() || null,
+        currencyId: body.currencyId ?? null,
       }),
     onSuccess: invalidate,
   });
 }
 
-/** The methods this order may pay through. Empty until the order's setup is finished. */
-export function usePaymentMethods() {
+/**
+ * The methods this order may pay through in a currency (its main one when none is given). Empty
+ * until the order's setup is finished.
+ */
+export function usePaymentMethods(currencyId?: string) {
   return useQuery({
-    queryKey: queryKeys.paymentMethods(),
-    queryFn: () => apiClient.get<PaymentMethodOptionDto[]>('orders/me/payment-methods'),
+    queryKey: queryKeys.paymentMethods(currencyId),
+    queryFn: () =>
+      apiClient.get<PaymentMethodOptionDto[]>('orders/me/payment-methods', {
+        query: currencyId ? { currencyId } : {},
+      }),
   });
 }
 
 export interface CreateDepositBody {
+  /** Which balance the money is for; the order's main currency when omitted. */
+  currencyId?: string;
   paymentMethodId: string;
   paymentMethodAccountId: string | null;
   amount: number;
   note: string | null;
   files: File[];
+  /** Files per payment method document, keyed by the document's id. */
+  documents?: Record<string, File[]>;
+  /** Answers to the documents' fields, keyed by field id. */
+  values?: Record<string, string>;
 }
 
 /**
@@ -279,8 +341,25 @@ export function useCreateDepositRequest() {
         form.append('paymentMethodAccountId', body.paymentMethodAccountId);
       }
       form.append('amount', String(body.amount));
+      if (body.currencyId) form.append('currencyId', body.currencyId);
       if (body.note) form.append('note', body.note);
       for (const file of body.files) form.append('files', file);
+
+      let index = 0;
+      for (const [requiredFileId, files] of Object.entries(body.documents ?? {})) {
+        if (files.length === 0) continue;
+        form.append(`documents[${index}].requiredFileId`, requiredFileId);
+        for (const file of files) form.append(`documents[${index}].files`, file);
+        index++;
+      }
+
+      index = 0;
+      for (const [fieldId, value] of Object.entries(body.values ?? {})) {
+        if (value.trim() === '') continue;
+        form.append(`values[${index}].fieldId`, fieldId);
+        form.append(`values[${index}].value`, value.trim());
+        index++;
+      }
 
       return apiClient.post<WalletRequestDto>('orders/me/wallet/requests/deposit', form);
     },
@@ -306,8 +385,11 @@ export function useSimulateDeposit() {
   const invalidate = useWalletInvalidation();
 
   return useMutation({
-    mutationFn: (amount: number) =>
-      apiClient.post<WalletSummaryDto>('orders/me/wallet/simulate-deposit', { amount }),
+    mutationFn: ({ amount, currencyId }: { amount: number; currencyId?: string }) =>
+      apiClient.post<WalletSummaryDto>('orders/me/wallet/simulate-deposit', {
+        amount,
+        currencyId: currencyId ?? null,
+      }),
     onSuccess: invalidate,
   });
 }

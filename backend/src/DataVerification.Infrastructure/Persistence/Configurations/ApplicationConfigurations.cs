@@ -10,6 +10,12 @@ public sealed class ApplicationConfiguration : EntityConfigurationBase<Verificat
     {
         builder.ToTable("Applications");
 
+        // The currency the lines are priced in; a currency backing an application is never removed.
+        builder.HasOne(a => a.Currency)
+            .WithMany()
+            .HasForeignKey(a => a.CurrencyId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.Property(a => a.ApplicationNumber).IsRequired().HasMaxLength(20);
         builder.Property(a => a.AddressedTo).IsRequired().HasMaxLength(500);
         builder.Property(a => a.BirthDate).HasColumnType("date");

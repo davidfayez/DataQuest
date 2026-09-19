@@ -31,6 +31,8 @@ public interface IApplicationDbContext
     DbSet<PaymentMethodNotificationEmail> PaymentMethodNotificationEmails { get; }
     DbSet<PaymentMethodIntegration> PaymentMethodIntegrations { get; }
 
+    DbSet<PaymentGatewayIntegration> PaymentGatewayIntegrations { get; }
+
     DbSet<TransactionType> TransactionTypes { get; }
     DbSet<TransactionTypeCountry> TransactionTypeCountries { get; }
     DbSet<SubTransactionType> SubTransactionTypes { get; }
@@ -43,6 +45,10 @@ public interface IApplicationDbContext
     DbSet<ServiceTypeRequiredFile> ServiceTypeRequiredFiles { get; }
     DbSet<RequiredFileField> RequiredFileFields { get; }
     DbSet<RequiredFileAllowedType> RequiredFileAllowedTypes { get; }
+
+    DbSet<RequiredFileSample> RequiredFileSamples { get; }
+
+    DbSet<WalletRequestDocumentValue> WalletRequestDocumentValues { get; }
     DbSet<RequiredFileFieldOption> RequiredFileFieldOptions { get; }
     DbSet<ApplicationDocumentValue> ApplicationDocumentValues { get; }
 

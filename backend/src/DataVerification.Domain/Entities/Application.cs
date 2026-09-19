@@ -94,6 +94,15 @@ public class VerificationApplication : Entity, ISoftDeletable
     /// <summary>Sum of the service line totals, always recomputed server-side from stored prices.</summary>
     public decimal TotalCost { get; private set; }
 
+    /// <summary>
+    /// The currency the lines are priced in. The order's main currency when the application is
+    /// created; the applicant may pay from another of the order's balances, and the application is
+    /// then priced again in that currency. Null only on rows from before this was recorded.
+    /// </summary>
+    public Guid? CurrencyId { get; set; }
+
+    public Currency? Currency { get; set; }
+
     public DateTime? PaidAtUtc { get; set; }
 
     public bool IsDeleted { get; set; }

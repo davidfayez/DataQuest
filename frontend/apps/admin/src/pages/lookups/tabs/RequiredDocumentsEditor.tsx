@@ -1,6 +1,9 @@
 import { Alert, Button, Field, Input, Select, cn } from '@dv/ui';
 import { Plus, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import type { RequiredFileSampleDto } from '@/features/lookups/api';
+import type { ReferenceFileScope } from '@/features/lookups/requiredFileSamples';
+import { RequiredFileSamplesPanel, type PendingReferenceFile } from './RequiredFileSamplesPanel';
 
 /** Mirrors the API's RequiredFieldType enum. Numeric so it matches the wire format exactly. */
 export enum RequiredFieldType {
@@ -70,6 +73,16 @@ export interface RequiredFileInput {
   fields: RequiredFieldInput[];
   /** Codes from DOCUMENT_FILE_TYPES. Never empty — a document that accepts nothing is unusable. */
   allowedFileTypes: string[];
+  /**
+   * Reference files already stored on this document. Shown and managed here, but saved through
+   * their own endpoints — the service-type save ignores this list.
+   */
+  samples?: RequiredFileSampleDto[];
+  /**
+   * Reference files chosen before this document was saved. Uploaded by the service-type form once
+   * the save has given the document an id; never sent in the save itself.
+   */
+  pendingSamples?: PendingReferenceFile[];
 }
 
 export const EMPTY_DOCUMENT: RequiredFileInput = {
@@ -108,14 +121,29 @@ function toNumber(value: string): number | null {
 interface Props {
   documents: RequiredFileInput[];
   onChange: (documents: RequiredFileInput[]) => void;
+  /** Whose documents these are: decides where reference files are stored and who may add them. */
+  scope?: ReferenceFileScope;
+  /**
+   * Whether an empty list is fine. A service type must ask for something; a payment method may ask
+   * for nothing, and then the list says so plainly instead of warning.
+   */
+  allowEmpty?: boolean;
+  /** Off when the editor already sits in a panel that carries its own title. */
+  showHeading?: boolean;
 }
 
 /**
- * Edits a service type's required documents: each one's upload limits and the custom fields the
- * applicant fills in beside it. Kept out of ServiceTypesTab because the nested field builder is
- * substantial on its own.
+ * Edits a set of required documents — a service type's or a payment method's: each one's upload
+ * limits, the custom fields the applicant fills in beside it, and its reference files. Kept out of
+ * the forms because the nested field builder is substantial on its own.
  */
-export function RequiredDocumentsEditor({ documents, onChange }: Props) {
+export function RequiredDocumentsEditor({
+  documents,
+  onChange,
+  scope = 'serviceType',
+  allowEmpty = false,
+  showHeading = true,
+}: Props) {
   const { t } = useTranslation();
 
   function patchDocument(index: number, patch: Partial<RequiredFileInput>) {
@@ -153,14 +181,25 @@ export function RequiredDocumentsEditor({ documents, onChange }: Props) {
 
   return (
     <fieldset className="space-y-4">
-      <legend className="text-sm font-medium">{t('lookups.requiredFiles')}</legend>
-      <p className="text-xs text-muted-foreground">{t('lookups.requiredFilesHint')}</p>
-
-      {documents.length === 0 && (
-        <Alert variant="warning" data-testid="documents-required">
-          {t('lookups.requiredFilesEmpty')}
-        </Alert>
+      {showHeading ? (
+        <>
+          <legend className="text-sm font-medium">{t('lookups.requiredFiles')}</legend>
+          <p className="text-xs text-muted-foreground">{t('lookups.requiredFilesHint')}</p>
+        </>
+      ) : (
+        <legend className="sr-only">{t('lookups.requiredFiles')}</legend>
       )}
+
+      {documents.length === 0 &&
+        (allowEmpty ? (
+          <p className="text-sm text-muted-foreground" data-testid="documents-empty">
+            {t('payments.documentsEmpty')}
+          </p>
+        ) : (
+          <Alert variant="warning" data-testid="documents-required">
+            {t('lookups.requiredFilesEmpty')}
+          </Alert>
+        ))}
 
       {documents.map((doc, docIndex) => (
         <div key={docIndex} className="space-y-4 rounded-xl border border-border p-4">
@@ -274,6 +313,16 @@ export function RequiredDocumentsEditor({ documents, onChange }: Props) {
               })}
             </div>
           </Field>
+
+          <RequiredFileSamplesPanel
+            requiredFileId={doc.id}
+            samples={doc.samples ?? []}
+            onChange={(samples) => patchDocument(docIndex, { samples })}
+            pending={doc.pendingSamples ?? []}
+            onPendingChange={(pendingSamples) => patchDocument(docIndex, { pendingSamples })}
+            testIdSuffix={docIndex}
+            scope={scope}
+          />
 
           <div className="space-y-3 rounded-lg bg-muted/40 p-3">
             <p className="text-sm font-medium">{t('lookups.documentFields')}</p>

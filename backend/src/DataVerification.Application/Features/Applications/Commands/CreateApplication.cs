@@ -165,6 +165,8 @@ public sealed class CreateApplicationCommandHandler
             TransactionTypeId = request.TransactionTypeId,
             SubTransactionTypeId = request.SubTransactionTypeId,
             VerificationAuthorityId = request.VerificationAuthorityId,
+            // Priced in the order's main currency; paying from another balance prices it again.
+            CurrencyId = order.CurrencyId,
         };
 
         ApplicationWriteService.ApplyApplicantContact(

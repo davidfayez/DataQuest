@@ -41,6 +41,9 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<PaymentMethodIntegration> PaymentMethodIntegrations =>
         Set<PaymentMethodIntegration>();
 
+    public DbSet<PaymentGatewayIntegration> PaymentGatewayIntegrations =>
+        Set<PaymentGatewayIntegration>();
+
     public DbSet<TransactionType> TransactionTypes => Set<TransactionType>();
     public DbSet<TransactionTypeCountry> TransactionTypeCountries => Set<TransactionTypeCountry>();
     public DbSet<SubTransactionType> SubTransactionTypes => Set<SubTransactionType>();
@@ -54,6 +57,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<ServiceTypeRequiredFile> ServiceTypeRequiredFiles => Set<ServiceTypeRequiredFile>();
     public DbSet<RequiredFileField> RequiredFileFields => Set<RequiredFileField>();
     public DbSet<RequiredFileAllowedType> RequiredFileAllowedTypes => Set<RequiredFileAllowedType>();
+    public DbSet<RequiredFileSample> RequiredFileSamples => Set<RequiredFileSample>();
+    public DbSet<WalletRequestDocumentValue> WalletRequestDocumentValues => Set<WalletRequestDocumentValue>();
     public DbSet<RequiredFileFieldOption> RequiredFileFieldOptions => Set<RequiredFileFieldOption>();
     public DbSet<ApplicationDocumentValue> ApplicationDocumentValues => Set<ApplicationDocumentValue>();
 

@@ -6,8 +6,10 @@ import {
   Field,
   Input,
   LoadingState,
+  Select,
   Spinner,
   buttonVariants,
+  cn,
 } from '@dv/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
@@ -32,6 +34,16 @@ interface OrderApplication {
   totalCost: number;
   canRefund: boolean;
   createdAtUtc: string;
+  /** The currency the application is priced in. */
+  currencyCode: string | null;
+}
+
+/** One of the order's balances. */
+interface OrderBalance {
+  currencyId: string;
+  currencyCode: string;
+  balance: number;
+  isMain: boolean;
 }
 
 interface OrderDetails {
@@ -39,15 +51,20 @@ interface OrderDetails {
   orderNumber: string;
   email: string;
   countryName: string | null;
+  /** The order's main currency. */
   currencyCode: string | null;
   walletBalance: number;
   createdAtUtc: string;
   lastLoginAtUtc: string | null;
   applications: OrderApplication[];
+  /** Every balance the order holds money in, main currency first. */
+  balances: OrderBalance[];
 }
 
 interface WalletStatement {
-  wallet: { balance: number; currencyCode: string };
+  wallet: { balance: number; currencyId: string; currencyCode: string };
+  /** Every balance the order can hold, main first — including ones with nothing in yet. */
+  balances: Array<{ currencyId: string; currencyCode: string; balance: number; isMain: boolean }>;
   ledger: {
     items: Array<{
       id: string;
@@ -85,6 +102,9 @@ export function OrderDetailPage() {
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [toRefund, setToRefund] = useState<OrderApplication | null>(null);
+  // Which balance the credit goes to and whose ledger is shown; the main one until chosen.
+  const [creditCurrencyId, setCreditCurrencyId] = useState('');
+  const [ledgerCurrencyId, setLedgerCurrencyId] = useState('');
 
   const order = useQuery({
     queryKey: adminKeys.order(id),
@@ -92,8 +112,11 @@ export function OrderDetailPage() {
   });
 
   const wallet = useQuery({
-    queryKey: adminKeys.orderWallet(id),
-    queryFn: () => apiClient.get<WalletStatement>(`admin/orders/${id}/wallet`),
+    queryKey: [...adminKeys.orderWallet(id), ledgerCurrencyId || 'main'],
+    queryFn: () =>
+      apiClient.get<WalletStatement>(`admin/orders/${id}/wallet`, {
+        query: ledgerCurrencyId ? { currencyId: ledgerCurrencyId } : {},
+      }),
   });
 
   function invalidate() {
@@ -106,6 +129,7 @@ export function OrderDetailPage() {
       apiClient.post(`admin/orders/${id}/wallet/credit`, {
         amount: Number(amount),
         note: note || null,
+        currencyId: creditCurrencyId || null,
       }),
     onSuccess: () => {
       setAmount('');
@@ -127,6 +151,9 @@ export function OrderDetailPage() {
 
   const details = order.data!;
   const currency = details.currencyCode ?? '';
+  // Every currency the order can hold, from the statement (it lists empty balances too).
+  const allBalances = wallet.data?.balances ?? [];
+  const ledgerCurrency = wallet.data?.wallet.currencyCode ?? currency;
 
   return (
     <div className="space-y-6">
@@ -155,6 +182,22 @@ export function OrderDetailPage() {
               {formatNumber(details.walletBalance, locale)} {currency}
             </p>
 
+            {/* The order's other balances, in the currencies its country also offers. */}
+            {allBalances.filter((balance) => !balance.isMain).length > 0 && (
+              <ul
+                className="mt-2 space-y-0.5 text-sm text-muted-foreground"
+                data-testid="order-other-balances"
+              >
+                {allBalances
+                  .filter((balance) => !balance.isMain)
+                  .map((balance) => (
+                    <li key={balance.currencyId}>
+                      {formatNumber(balance.balance, locale)} {balance.currencyCode}
+                    </li>
+                  ))}
+              </ul>
+            )}
+
             {/* Deposits and payouts are decided in the queue, filtered to this order. */}
             <Link
               to={`/wallet-requests?orderId=${id}`}
@@ -176,6 +219,29 @@ export function OrderDetailPage() {
               {credit.isSuccess ? <Alert variant="success">{t('orders.credited')}</Alert> : null}
 
               <div className="flex flex-wrap items-end gap-3">
+                {allBalances.length > 1 && (
+                  <Field
+                    label={t('orders.creditCurrency')}
+                    htmlFor="credit-currency"
+                    className="w-32"
+                  >
+                    <Select
+                      id="credit-currency"
+                      value={
+                        creditCurrencyId || allBalances.find((b) => b.isMain)?.currencyId || ''
+                      }
+                      onChange={(event) => setCreditCurrencyId(event.target.value)}
+                      data-testid="credit-currency"
+                    >
+                      {allBalances.map((balance) => (
+                        <option key={balance.currencyId} value={balance.currencyId}>
+                          {balance.currencyCode}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                )}
+
                 <Field label={t('orders.creditAmount')} htmlFor="amount" className="w-40">
                   <Input
                     id="amount"
@@ -189,11 +255,7 @@ export function OrderDetailPage() {
                 </Field>
 
                 <Field label={t('orders.creditNote')} htmlFor="note" className="min-w-48 flex-1">
-                  <Input
-                    id="note"
-                    value={note}
-                    onChange={(event) => setNote(event.target.value)}
-                  />
+                  <Input id="note" value={note} onChange={(event) => setNote(event.target.value)} />
                 </Field>
 
                 <Button
@@ -275,7 +337,8 @@ export function OrderDetailPage() {
                     {formatDateTime(application.createdAtUtc, locale)}
                   </td>
                   <td className="px-3 py-2.5 text-end whitespace-nowrap">
-                    {formatNumber(application.totalCost, locale)} {currency}
+                    {formatNumber(application.totalCost, locale)}{' '}
+                    {application.currencyCode ?? currency}
                   </td>
                   <td className="px-3 py-2.5 text-end">
                     <div className="flex items-center justify-end gap-1">
@@ -309,17 +372,59 @@ export function OrderDetailPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="font-medium">{t('orders.ledger')}</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-medium">
+            {t('orders.ledger')}
+            <span className="ms-2 font-mono text-sm text-muted-foreground" dir="ltr">
+              {ledgerCurrency}
+            </span>
+          </h2>
+
+          {/* One ledger per currency: pick whose to read. */}
+          {allBalances.length > 1 && (
+            <div className="flex flex-wrap gap-1.5" data-testid="ledger-currencies">
+              {allBalances.map((balance) => {
+                const active = balance.currencyId === wallet.data?.wallet.currencyId;
+                return (
+                  <button
+                    key={balance.currencyId}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setLedgerCurrencyId(balance.currencyId)}
+                    className={cn(
+                      'rounded-full border px-3 py-1 font-mono text-xs font-medium',
+                      active
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-border text-muted-foreground hover:bg-muted',
+                    )}
+                  >
+                    {balance.currencyCode}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full min-w-[42rem] text-sm">
             <thead className="bg-muted">
               <tr>
-                <th scope="col" className="p-3 text-start font-medium">{t('audit.action')}</th>
-                <th scope="col" className="p-3 text-start font-medium">{t('applications.reference')}</th>
-                <th scope="col" className="p-3 text-start font-medium">{t('audit.date')}</th>
-                <th scope="col" className="p-3 text-end font-medium">{t('orders.creditAmount')}</th>
-                <th scope="col" className="p-3 text-end font-medium">{t('orders.walletBalance')}</th>
+                <th scope="col" className="p-3 text-start font-medium">
+                  {t('audit.action')}
+                </th>
+                <th scope="col" className="p-3 text-start font-medium">
+                  {t('applications.reference')}
+                </th>
+                <th scope="col" className="p-3 text-start font-medium">
+                  {t('audit.date')}
+                </th>
+                <th scope="col" className="p-3 text-end font-medium">
+                  {t('orders.creditAmount')}
+                </th>
+                <th scope="col" className="p-3 text-end font-medium">
+                  {t('orders.walletBalance')}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -353,7 +458,7 @@ export function OrderDetailPage() {
         open={toRefund !== null}
         title={t('orders.refundTitle')}
         body={t('orders.refundBody', {
-          amount: `${formatNumber(toRefund?.totalCost ?? 0, locale)} ${currency}`,
+          amount: `${formatNumber(toRefund?.totalCost ?? 0, locale)} ${toRefund?.currencyCode ?? currency}`,
         })}
         confirmLabel={t('orders.refund')}
         onClose={() => setToRefund(null)}

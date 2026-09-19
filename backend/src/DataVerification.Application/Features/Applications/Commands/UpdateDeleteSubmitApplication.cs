@@ -187,9 +187,12 @@ public sealed class UpdateApplicationCommandHandler
                 request.Services,
                 request.VerificationAuthorityId!.Value,
                 request.SubTransactionTypeId!.Value,
-                order.CurrencyId.Value,
+                // An edit keeps the application in the currency it is priced in.
+                application.CurrencyId ?? order.CurrencyId.Value,
                 cancellationToken);
         }
+
+        application.CurrencyId ??= order.CurrencyId;
 
         await _db.SaveChangesAsync(cancellationToken);
 

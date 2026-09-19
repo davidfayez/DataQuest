@@ -6,20 +6,26 @@ import { apiClient } from '@/shared/api/client';
 import { useApiErrorMessage } from '@/shared/lib/useApiError';
 
 interface Props {
-  applicationId: string;
   fileId: string;
   fileName: string;
   contentType: string;
+  /** For one of the applicant's own uploads. */
+  applicationId?: string;
+  /** For any other file — a reference file on a document — the API path to fetch it from. */
+  path?: string;
+  /** The button's text; "Preview" when not given. */
+  label?: string;
 }
 
 /**
- * Shows an uploaded document without leaving the wizard.
+ * Shows a document without leaving the wizard.
  *
- * The download endpoint is order-scoped and needs the bearer token, which lives in memory — a
- * plain `<img src>` or `<iframe src>` cannot carry it. So the bytes are fetched through the API
- * client and shown from an object URL, which is revoked as soon as the dialog closes.
+ * The download endpoints need the bearer token, which lives in memory — a plain `<img src>` or
+ * `<iframe src>` cannot carry it. So the bytes are fetched through the API client and shown from an
+ * object URL, which is revoked as soon as the dialog closes.
  */
-export function FilePreview({ applicationId, fileId, fileName, contentType }: Props) {
+export function FilePreview({ applicationId, fileId, fileName, contentType, path, label }: Props) {
+  const source = path ?? `applications/${applicationId}/files/${fileId}`;
   const { t } = useTranslation();
   const toMessage = useApiErrorMessage();
 
@@ -44,7 +50,7 @@ export function FilePreview({ applicationId, fileId, fileName, contentType }: Pr
     setError(null);
 
     apiClient
-      .getBlob(`applications/${applicationId}/files/${fileId}`)
+      .getBlob(source)
       .then((blob) => {
         if (cancelled) return;
         // The server's content type is authoritative; the blob's may be empty.
@@ -64,7 +70,7 @@ export function FilePreview({ applicationId, fileId, fileName, contentType }: Pr
       if (created) URL.revokeObjectURL(created);
       setObjectUrl(null);
     };
-  }, [open, applicationId, fileId, contentType]);
+  }, [open, source, contentType]);
 
   return (
     <>
@@ -76,7 +82,7 @@ export function FilePreview({ applicationId, fileId, fileName, contentType }: Pr
         data-testid={`preview-${fileId}`}
       >
         <Eye className="size-4" aria-hidden="true" />
-        {t('wizard.files.preview')}
+        {label ?? t('wizard.files.preview')}
       </Button>
 
       {/* Mounted only while it is open. A closed Dialog still renders its title, so every preview

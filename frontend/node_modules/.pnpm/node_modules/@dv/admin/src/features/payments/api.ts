@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { DeleteOutcome, ListParams } from '@/features/lookups/api';
+import type { DeleteOutcome, ListParams, RequiredFileDto } from '@/features/lookups/api';
+import type { RequiredFileInput } from '@/pages/lookups/tabs/RequiredDocumentsEditor';
 import { adminKeys, apiClient } from '@/shared/api/client';
 import { useLanguage } from '@/shared/lib/useLanguage';
 import type { PagedResult } from '@/shared/ui/DataTable';
@@ -31,7 +32,12 @@ export interface PaymentMethodTypeDto {
   name: string;
   nameAr: string;
   nameEn: string;
+  /** The description in the current language, falling back to the other. */
+  description: string | null;
+  descriptionAr: string | null;
+  descriptionEn: string | null;
   isActive: boolean;
+  /** Read-only: a new type is a transfer, and an existing type keeps its kind. */
   kind: PaymentMethodKind;
   kindName: string;
   /** Receiving numbers the applicant picks from, and pays. */
@@ -175,6 +181,20 @@ export interface AdminPaymentMethodDto {
   integration: PaymentIntegrationDto | null;
   /** Server-decided: whether the method is complete enough to appear in the applicant's picker. */
   isUsable: boolean;
+  /** The documents an applicant uploads with every deposit through this method. */
+  requiredFiles: RequiredFileDto[];
+  /** The gateway integration the method pays through, from the Payment type integrations page. */
+  gatewayIntegrationId: string | null;
+  gatewayIntegrationName: string | null;
+  gatewayCode: string | null;
+  /** Sandbox or Live, as the chosen integration declares it. */
+  gatewayModeName: string | null;
+  /** This method's own settings for that gateway. */
+  gatewaySettings: Record<string, string>;
+  /** Which gateway secrets are stored; the values come from their own endpoint. */
+  configuredGatewaySecrets: string[];
+  /** False when the server has no encryption key, so gateway secrets cannot be saved. */
+  canStoreGatewaySecrets: boolean;
 }
 
 /** One account as the editor submits it; an id present edits the row and keeps its barcode. */
@@ -210,17 +230,29 @@ export interface UpsertPaymentMethodBody {
   notificationEmails: PaymentNotificationEmailInput[];
   /** Omitted entirely leaves any stored integration untouched. */
   integration?: PaymentIntegrationInput | null;
+  /**
+   * The documents asked for with every deposit. Omitted leaves the stored ones untouched; an empty
+   * list removes them. Reference files are not sent here — they have their own endpoints.
+   */
+  requiredFiles?: RequiredFileInput[];
+  /** Null for none, which also clears the settings saved for it. */
+  gatewayIntegrationId?: string | null;
+  /** The chosen gateway's settings, replaced outright. */
+  gatewaySettings?: Record<string, string>;
+  /** A key left out keeps what is stored, an empty value removes it, anything else replaces it. */
+  gatewaySecrets?: Record<string, string>;
 }
 
 /**
- * Receiving numbers and barcodes are absent on purpose: the server derives them from the kind, so
- * sending them would only invite the two to disagree.
+ * No kind: a new type is a transfer, and an existing type keeps the kind it has.
  */
 export interface UpsertPaymentMethodTypeBody {
   id?: string | null;
   nameAr: string;
   nameEn: string;
-  kind: PaymentMethodKind;
+  /** Required in both languages. */
+  descriptionAr: string;
+  descriptionEn: string;
   requiresAccountNumber: boolean;
   requiresBarcode: boolean;
   requiresBank: boolean;

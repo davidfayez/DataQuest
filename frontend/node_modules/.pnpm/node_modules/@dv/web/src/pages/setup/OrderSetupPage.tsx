@@ -18,7 +18,7 @@ import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { z } from 'zod';
-import { useCountries, useCountryCurrencies } from '@/entities/lookup/api';
+import { useCountries } from '@/entities/lookup/api';
 import { setupOrder } from '@/features/auth/api';
 import { useApiErrorMessage } from '@/shared/lib/useApiError';
 import { PhoneNumberInput } from '@/shared/ui/PhoneNumberInput';
@@ -32,7 +32,6 @@ export function OrderSetupPage() {
 
   const schema = z.object({
     verificationCountryId: z.string().min(1, t('validation.countryRequired')),
-    currencyId: z.string().min(1, t('validation.currencyRequired')),
     contactPersonName: z
       .string()
       .trim()
@@ -53,7 +52,6 @@ export function OrderSetupPage() {
     resolver: zodResolver(schema),
     defaultValues: {
       verificationCountryId: '',
-      currencyId: '',
       contactPersonName: '',
       contactPhoneCountry: DEFAULT_PHONE_COUNTRY,
       contactPhoneNumber: '',
@@ -61,18 +59,11 @@ export function OrderSetupPage() {
   });
 
   const selectedCountryId = form.watch('verificationCountryId');
-  const selectedCurrencyId = form.watch('currencyId');
   const phoneCountry = form.watch('contactPhoneCountry');
   const phoneNumber = form.watch('contactPhoneNumber');
 
+  // No currency to choose: the order is set up in the chosen country's main currency.
   const countries = useCountries();
-  const currencies = useCountryCurrencies(selectedCountryId || undefined);
-
-  // Changing the country invalidates whatever currency was chosen under the previous one —
-  // leaving it selected would submit a pairing the server is going to reject.
-  useEffect(() => {
-    form.setValue('currencyId', '');
-  }, [selectedCountryId, form]);
 
   // The contact is usually reachable in the country being verified, so the dial code follows that
   // choice — until the applicant picks one themselves, after which it is left alone.
@@ -92,7 +83,6 @@ export function OrderSetupPage() {
     mutationFn: (values: FormValues) =>
       setupOrder({
         verificationCountryId: values.verificationCountryId,
-        currencyId: values.currencyId,
         contactPersonName: values.contactPersonName.trim(),
         contactPersonPhoneCountry: values.contactPhoneCountry,
         contactPersonPhoneCode: findPhoneCountry(values.contactPhoneCountry)?.dialCode ?? '',
@@ -144,35 +134,6 @@ export function OrderSetupPage() {
                 options={(countries.data ?? []).map((country) => ({
                   value: country.id,
                   label: country.name,
-                }))}
-              />
-            </Field>
-
-            <Field
-              label={t('setup.currencyLabel')}
-              htmlFor="currencyId"
-              required
-              hint={t('setup.currencyHint')}
-              error={form.formState.errors.currencyId?.message}
-            >
-              <SearchableSelect
-                id="currencyId"
-                disabled={!selectedCountryId || currencies.isPending}
-                invalid={Boolean(form.formState.errors.currencyId)}
-                value={selectedCurrencyId}
-                onChange={(value) => form.setValue('currencyId', value, { shouldValidate: true })}
-                placeholder={
-                  !selectedCountryId
-                    ? t('setup.selectCountryFirst')
-                    : currencies.isPending
-                      ? t('common.loading')
-                      : t('setup.currencyPlaceholder')
-                }
-                searchPlaceholder={t('common.search')}
-                emptyMessage={t('common.noResults')}
-                options={(currencies.data ?? []).map((currency) => ({
-                  value: currency.id,
-                  label: `${currency.name} (${currency.code})`,
                 }))}
               />
             </Field>

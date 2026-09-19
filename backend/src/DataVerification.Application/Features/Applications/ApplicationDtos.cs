@@ -156,7 +156,9 @@ public sealed record RequiredFileStatusDto(
     /// what the server will take. Already resolved, so a document configured with no formats
     /// reports the platform default rather than an empty list.
     /// </summary>
-    IReadOnlyList<string> AllowedExtensions);
+    IReadOnlyList<string> AllowedExtensions,
+    /// <summary>Reference files an administrator attached to this document, for the applicant to look at.</summary>
+    IReadOnlyList<RequiredFileSampleDto> Samples);
 
 internal static class ApplicationDtoMapper
 {

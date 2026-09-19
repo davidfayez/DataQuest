@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ApplicationSort,
   useMyApplications,
@@ -33,22 +33,36 @@ import { ApplicationStatus } from '@/entities/application/types';
 import {
   useSimulateDeposit,
   useWallet,
-  WalletRequestType,
   WalletTransactionType,
+  type WalletBalanceDto,
 } from '@/entities/wallet/api';
 import { PayDialog } from '@/features/payment/PayDialog';
-import { DepositDialog } from '@/features/wallet/DepositDialog';
-import { WalletRequestDialog } from '@/features/wallet/WalletRequestDialog';
 import { WalletRequestsSection } from '@/features/wallet/WalletRequestsSection';
 import { formatCurrency, formatDateTime } from '@/shared/lib/format';
 import { useApiErrorMessage } from '@/shared/lib/useApiError';
 
 const TYPE_META = {
   [WalletTransactionType.TopUp]: { key: 'wallet.topUp', icon: Plus, tone: 'text-success' },
-  [WalletTransactionType.Payment]: { key: 'wallet.paymentType', icon: ArrowUpRight, tone: 'text-destructive' },
-  [WalletTransactionType.Refund]: { key: 'wallet.refundType', icon: ArrowDownLeft, tone: 'text-success' },
-  [WalletTransactionType.Withdrawal]: { key: 'wallet.withdrawalType', icon: Lock, tone: 'text-destructive' },
-  [WalletTransactionType.WithdrawalReversal]: { key: 'wallet.withdrawalReversalType', icon: Undo2, tone: 'text-success' },
+  [WalletTransactionType.Payment]: {
+    key: 'wallet.paymentType',
+    icon: ArrowUpRight,
+    tone: 'text-destructive',
+  },
+  [WalletTransactionType.Refund]: {
+    key: 'wallet.refundType',
+    icon: ArrowDownLeft,
+    tone: 'text-success',
+  },
+  [WalletTransactionType.Withdrawal]: {
+    key: 'wallet.withdrawalType',
+    icon: Lock,
+    tone: 'text-destructive',
+  },
+  [WalletTransactionType.WithdrawalReversal]: {
+    key: 'wallet.withdrawalReversalType',
+    icon: Undo2,
+    tone: 'text-success',
+  },
 } as const;
 
 /** The ledger filter, in the order the chips are shown. */
@@ -66,31 +80,46 @@ export function WalletPage() {
   const { lang = 'en' } = useParams<{ lang: string }>();
   const toMessage = useApiErrorMessage();
 
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [page, setPage] = useState(1);
   const [filter, setFilter] = useState<WalletTransactionType | undefined>(undefined);
-  const [requesting, setRequesting] = useState<WalletRequestType | null>(null);
-  const [depositing, setDepositing] = useState(false);
-  // Carried from a payment that came up short, so the deposit opens with the figure already in it.
-  const [topUpAmount, setTopUpAmount] = useState<number | undefined>(undefined);
+  // Whose ledger is shown; the main currency until another balance is picked.
+  const [ledgerCurrencyId, setLedgerCurrencyId] = useState<string | undefined>(undefined);
 
-  // Arriving from a payment that came up short on another page: open the deposit with the figure
-  // already in it, then drop the parameter so a refresh does not reopen the dialog.
-  const [searchParams, setSearchParams] = useSearchParams();
+  const addFundsPath = (currencyId?: string, amount?: number) => {
+    const query = new URLSearchParams();
+    if (currencyId) query.set('currency', currencyId);
+    if (amount && amount > 0) query.set('amount', String(amount));
+    const suffix = query.toString();
+    return `/${lang}/wallet/add-funds${suffix ? `?${suffix}` : ''}`;
+  };
 
+  // An older link (?topUp=<amount>) still lands on the Add funds page with the figure in it.
+  const [searchParams] = useSearchParams();
   useEffect(() => {
     const requested = Number(searchParams.get('topUp'));
     if (!Number.isFinite(requested) || requested <= 0) return;
+    navigate(addFundsPath(undefined, requested), { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
-    setTopUpAmount(requested);
-    setDepositing(true);
-    setSearchParams({}, { replace: true });
-  }, [searchParams, setSearchParams]);
-  const [submitted, setSubmitted] = useState<WalletRequestType | null>(null);
+  // Handed back by the Add funds and Withdraw pages, then cleared so a refresh does not repeat it.
+  const [submitted, setSubmitted] = useState<'deposit' | 'withdrawal' | null>(null);
+  useEffect(() => {
+    const handed = (location.state as { submitted?: 'deposit' | 'withdrawal' } | null)?.submitted;
+    if (!handed) return;
+    setSubmitted(handed);
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
   const [payTargets, setPayTargets] = useState<ApplicationListItemDto[]>([]);
   const [paidCount, setPaidCount] = useState<number | null>(null);
   const [testAmount, setTestAmount] = useState('100');
+  const [testCurrencyId, setTestCurrencyId] = useState('');
 
-  const wallet = useWallet(page, filter);
+  const wallet = useWallet(page, filter, ledgerCurrencyId);
   const simulate = useSimulateDeposit();
 
   // Unpaid applications are the reason a balance matters, so the wallet offers to settle them
@@ -105,18 +134,32 @@ export function WalletPage() {
   });
 
   const unpaid = useMemo(() => applications.data?.items ?? [], [applications.data]);
-  const unpaidTotal = unpaid.reduce((sum, row) => sum + row.totalCost, 0);
+  // Each application is priced in its own currency, so what is owed is totalled per currency.
+  const unpaidTotals = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const row of unpaid) {
+      totals.set(row.currencyCode, (totals.get(row.currencyCode) ?? 0) + row.totalCost);
+    }
+    return [...totals.entries()];
+  }, [unpaid]);
 
   if (wallet.isPending) {
     return <LoadingState label={t('common.loading')} />;
   }
 
   const statement = wallet.data;
+  // The currency of the ledger on screen.
   const currency = statement?.wallet.currencyCode ?? '';
-  const balance = statement?.wallet.balance ?? 0;
+  const shownCurrencyId = statement?.wallet.currencyId;
+  const balances = statement?.balances ?? [];
   const features = statement?.features;
   const entries = statement?.ledger.items ?? [];
   const ledger = statement?.ledger;
+
+  function showLedgerFor(balance: WalletBalanceDto) {
+    setLedgerCurrencyId(balance.currencyId);
+    setPage(1);
+  }
 
   function changeFilter(type: WalletTransactionType | undefined) {
     setFilter(type);
@@ -130,11 +173,7 @@ export function WalletPage() {
 
       {submitted !== null && (
         <Alert variant="success" data-testid="wallet-request-success">
-          {t(
-            submitted === WalletRequestType.Deposit
-              ? 'wallet.depositSubmitted'
-              : 'wallet.withdrawSubmitted',
-          )}
+          {t(submitted === 'deposit' ? 'wallet.depositSubmitted' : 'wallet.withdrawSubmitted')}
         </Alert>
       )}
 
@@ -144,42 +183,92 @@ export function WalletPage() {
         </Alert>
       )}
 
-      <Card>
-        <CardContent className="flex flex-wrap items-end justify-between gap-4 p-6">
-          <div>
-            <p className="text-sm text-muted-foreground">{t('wallet.balance')}</p>
-            <p className="mt-1 text-3xl font-semibold" data-testid="wallet-balance">
-              {formatCurrency(balance, currency, locale)}
-            </p>
-          </div>
+      {/* One card per currency the order can hold. Adding funds and withdrawing are their own
+          pages; the card sends somebody there for that balance. */}
+      <section className="space-y-3">
+        <h2 className="font-medium">{t('wallet.balances')}</h2>
 
-          {/* Both controls come straight from the server's feature flags — an environment that
-              does not offer payouts never renders the button. */}
-          <div className="flex flex-wrap gap-2">
-            {features?.depositRequestsEnabled && (
-              <Button
-                onClick={() => setDepositing(true)}
-                data-testid="wallet-deposit"
-              >
-                <Plus className="size-4" aria-hidden="true" />
-                {t('wallet.deposit')}
-              </Button>
-            )}
+        <div className="grid gap-3 sm:grid-cols-2" data-testid="wallet-balances">
+          {balances.map((balance) => {
+            const isShown = balance.currencyId === shownCurrencyId;
 
-            {features?.withdrawalRequestsEnabled && (
-              <Button
-                variant="outline"
-                disabled={balance <= 0}
-                onClick={() => setRequesting(WalletRequestType.Withdrawal)}
-                data-testid="wallet-withdraw"
+            return (
+              <Card
+                key={balance.currencyId}
+                className={cn(isShown && 'ring-2 ring-primary/60')}
+                data-testid={`wallet-balance-card-${balance.currencyCode}`}
               >
-                <Minus className="size-4" aria-hidden="true" />
-                {t('wallet.withdraw')}
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+                <CardContent className="space-y-4 p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <span className="font-mono font-semibold text-foreground" dir="ltr">
+                          {balance.currencyCode}
+                        </span>
+                        <span className="truncate">{balance.currencyName}</span>
+                        {balance.isMain && (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase">
+                            {t('wallet.mainCurrency')}
+                          </span>
+                        )}
+                      </p>
+                      <p
+                        className="mt-1 text-2xl font-semibold"
+                        data-testid={`wallet-balance-${balance.currencyCode}`}
+                      >
+                        {formatCurrency(balance.balance, balance.currencyCode, locale)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Both actions come straight from the server's feature flags — an environment
+                      that does not offer payouts never renders the button. */}
+                  <div className="flex flex-wrap gap-2">
+                    {features?.depositRequestsEnabled && (
+                      <Link
+                        to={addFundsPath(balance.currencyId)}
+                        className={buttonVariants({ size: 'sm' })}
+                        data-testid={`wallet-deposit-${balance.currencyCode}`}
+                      >
+                        <Plus className="size-4" aria-hidden="true" />
+                        {t('wallet.deposit')}
+                      </Link>
+                    )}
+
+                    {features?.withdrawalRequestsEnabled &&
+                      (balance.balance > 0 ? (
+                        <Link
+                          to={`/${lang}/wallet/withdraw?currency=${balance.currencyId}`}
+                          className={buttonVariants({ variant: 'outline', size: 'sm' })}
+                          data-testid={`wallet-withdraw-${balance.currencyCode}`}
+                        >
+                          <Minus className="size-4" aria-hidden="true" />
+                          {t('wallet.withdraw')}
+                        </Link>
+                      ) : (
+                        <Button variant="outline" size="sm" disabled>
+                          <Minus className="size-4" aria-hidden="true" />
+                          {t('wallet.withdraw')}
+                        </Button>
+                      ))}
+
+                    {!isShown && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => showLedgerFor(balance)}
+                        data-testid={`wallet-show-ledger-${balance.currencyCode}`}
+                      >
+                        {t('wallet.showStatement')}
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </section>
 
       {statement && statement.pendingRequests.length > 0 && (
         <Alert variant="info" data-testid="wallet-pending-notice">
@@ -197,7 +286,9 @@ export function WalletPage() {
               <p className="font-medium">{t('wallet.unpaidTitle', { n: unpaid.length })}</p>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 {t('wallet.unpaidTotal', {
-                  amount: formatCurrency(unpaidTotal, currency, locale),
+                  amount: unpaidTotals
+                    .map(([code, amount]) => formatCurrency(amount, code, locale))
+                    .join(' · '),
                 })}
               </p>
             </div>
@@ -245,10 +336,31 @@ export function WalletPage() {
                 data-testid="simulate-amount"
               />
 
+              {balances.length > 1 && (
+                <select
+                  aria-label={t('wallet.balance')}
+                  className="h-10 rounded-lg border border-border bg-white px-3 text-sm"
+                  value={testCurrencyId || shownCurrencyId || ''}
+                  onChange={(event) => setTestCurrencyId(event.target.value)}
+                  data-testid="simulate-currency"
+                >
+                  {balances.map((balance) => (
+                    <option key={balance.currencyId} value={balance.currencyId}>
+                      {balance.currencyCode}
+                    </option>
+                  ))}
+                </select>
+              )}
+
               <Button
                 variant="secondary"
                 disabled={simulate.isPending || !(Number(testAmount) > 0)}
-                onClick={() => simulate.mutate(Number(testAmount))}
+                onClick={() =>
+                  simulate.mutate({
+                    amount: Number(testAmount),
+                    currencyId: testCurrencyId || shownCurrencyId,
+                  })
+                }
                 data-testid="simulate-submit"
               >
                 {simulate.isPending && <Spinner />}
@@ -263,7 +375,14 @@ export function WalletPage() {
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-medium">{t('wallet.ledgerTitle')}</h2>
+          <h2 className="font-medium">
+            {t('wallet.ledgerTitle')}
+            {currency && (
+              <span className="ms-2 font-mono text-sm text-muted-foreground" dir="ltr">
+                {currency}
+              </span>
+            )}
+          </h2>
 
           <div className="flex flex-wrap gap-1.5">
             {LEDGER_FILTERS.map((option) => (
@@ -307,11 +426,21 @@ export function WalletPage() {
             <table className="w-full min-w-[42rem] text-sm">
               <thead className="bg-muted">
                 <tr>
-                  <th scope="col" className="p-3 text-start font-medium">{t('wallet.type')}</th>
-                  <th scope="col" className="p-3 text-start font-medium">{t('wallet.reference')}</th>
-                  <th scope="col" className="p-3 text-start font-medium">{t('wallet.date')}</th>
-                  <th scope="col" className="p-3 text-end font-medium">{t('wallet.amount')}</th>
-                  <th scope="col" className="p-3 text-end font-medium">{t('wallet.balanceAfter')}</th>
+                  <th scope="col" className="p-3 text-start font-medium">
+                    {t('wallet.type')}
+                  </th>
+                  <th scope="col" className="p-3 text-start font-medium">
+                    {t('wallet.reference')}
+                  </th>
+                  <th scope="col" className="p-3 text-start font-medium">
+                    {t('wallet.date')}
+                  </th>
+                  <th scope="col" className="p-3 text-end font-medium">
+                    {t('wallet.amount')}
+                  </th>
+                  <th scope="col" className="p-3 text-end font-medium">
+                    {t('wallet.balanceAfter')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -396,38 +525,6 @@ export function WalletPage() {
         )}
       </section>
 
-      {features && (
-        <DepositDialog
-          open={depositing}
-          features={features}
-          currency={currency}
-          initialAmount={topUpAmount}
-          onClose={() => {
-            setDepositing(false);
-            setTopUpAmount(undefined);
-          }}
-          onSubmitted={() => {
-            setDepositing(false);
-            setTopUpAmount(undefined);
-            setSubmitted(WalletRequestType.Deposit);
-          }}
-        />
-      )}
-
-      {features && (
-        <WalletRequestDialog
-          type={requesting}
-          features={features}
-          balance={balance}
-          currency={currency}
-          onClose={() => setRequesting(null)}
-          onSubmitted={(type) => {
-            setRequesting(null);
-            setSubmitted(type);
-          }}
-        />
-      )}
-
       <PayDialog
         open={payTargets.length > 0}
         applications={payTargets}
@@ -436,13 +533,8 @@ export function WalletPage() {
           setPayTargets([]);
           setPaidCount(count);
         }}
-        // One dialog closes as the other opens: they are both modals, and a payment that cannot go
-        // through has nothing left to show behind the top-up.
-        onTopUp={(shortfall) => {
-          setPayTargets([]);
-          setTopUpAmount(shortfall);
-          setDepositing(true);
-        }}
+        // A payment that cannot go through leads to adding the difference to that balance.
+        onTopUp={(shortfall, currencyId) => navigate(addFundsPath(currencyId, shortfall))}
       />
     </div>
   );

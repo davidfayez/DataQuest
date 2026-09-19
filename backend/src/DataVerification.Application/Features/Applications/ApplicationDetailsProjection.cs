@@ -40,6 +40,7 @@ internal static class ApplicationDetailsProjection
             .Include(a => a.SubTransactionType)
             .Include(a => a.VerificationAuthority)
             .Include(a => a.Order).ThenInclude(o => o!.Currency)
+            .Include(a => a.Currency)
             .FirstOrDefaultAsync(a => a.Id == applicationId && a.OrderId == orderId, cancellationToken)
             ?? throw new NotFoundException("Application", applicationId);
 
@@ -62,7 +63,8 @@ internal static class ApplicationDetailsProjection
             application.IsPaid,
             application.PaidAtUtc,
             application.TotalCost,
-            application.Order?.Currency?.Code ?? string.Empty,
+            // Its own currency; the order's main one for rows from before that was recorded.
+            application.Currency?.Code ?? application.Order?.Currency?.Code ?? string.Empty,
             application.CreatedAtUtc,
             application.CanEdit(),
             application.CanDelete(),
@@ -92,7 +94,7 @@ internal static class ApplicationDetailsProjection
                     s.Id,
                     s.ServiceTypeId,
                     s.ServiceType?.ResolveName(languageCode) ?? string.Empty,
-                    s.ServiceType?.ResolveDescription(languageCode),
+                    s.ServiceType?.ResolveApplicantDescription(languageCode),
                     s.ServiceType?.ExecutionTimeDays ?? 0,
                     s.Quantity,
                     s.LanguageCode,

@@ -11,15 +11,15 @@ export interface BrandingDto {
 }
 
 /**
- * The uploaded logo, if there is one. Public and long-cached: the brand mark is on every page and
- * changes about once a year, and a replaced logo is picked up through the version token rather
- * than by re-asking.
+ * The uploaded logo, if there is one. The answer is a few bytes and the image itself is cached
+ * against its version token, so asking again is cheap: after a minute, returning to the tab
+ * re-checks, and a logo replaced in the admin panel shows without waiting for a full reload.
  */
 export function useBranding() {
   return useQuery({
     queryKey: ['content', 'branding'],
     queryFn: () => apiClient.get<BrandingDto>('content/branding'),
-    staleTime: 10 * 60 * 1000,
+    staleTime: 60 * 1000,
     retry: false,
   });
 }

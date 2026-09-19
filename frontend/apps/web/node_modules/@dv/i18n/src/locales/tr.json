@@ -142,14 +142,10 @@
   },
   "setup": {
     "title": "Siparişinizi ayarlayın",
-    "subtitle": "Belgelerinizin doğrulanacağı ülkeyi ve ödeme yapacağınız para birimini seçin.",
+    "subtitle": "Belgelerinizin nerede doğrulanacağını ve siparişiniz hakkında kiminle iletişime geçeceğimizi seçin.",
     "countryLabel": "Doğrulama ülkesi",
     "countryPlaceholder": "Ülke seçin",
     "countryHint": "Bu, hangi makamların ve hizmetlerin size sunulacağını belirler.",
-    "currencyLabel": "Para birimi",
-    "currencyPlaceholder": "Para birimi seçin",
-    "currencyHint": "Cüzdanınız bu para biriminde açılır ve daha sonra değiştirilemez.",
-    "selectCountryFirst": "Önce bir ülke seçin",
     "contactNameLabel": "İletişim kişisi adı",
     "contactNamePlaceholder": "Ad soyad",
     "contactNameHint": "Bu sipariş hakkında kiminle görüşeceğimiz.",
@@ -158,7 +154,7 @@
     "contactPhoneHint": "Ülke kodunu seçin, ardından numarayı kodsuz girin.",
     "submit": "Onayla ve cüzdanımı aç",
     "warningTitle": "Bu seçim kalıcıdır",
-    "warningBody": "Cüzdanınız açıldıktan sonra doğrulama ülkesi ve para birimi bu sipariş için sabitlenir.",
+    "warningBody": "Cüzdanınız açıldıktan sonra bu siparişin doğrulama ülkesi sabitlenir.",
     "successTitle": "Siparişiniz hazır",
     "successBody": "Cüzdanınız {{currency}} para biriminde açıldı. Artık ilk başvurunuzu oluşturabilirsiniz."
   },
@@ -169,7 +165,6 @@
     "orderNumberLength": "E-postanızdaki sipariş numarasının tamamını girin.",
     "passwordRequired": "Parolanızı girin.",
     "countryRequired": "Doğrulama ülkesi seçin.",
-    "currencyRequired": "Para birimi seçin.",
     "contactNameRequired": "İletişim kişisinin adını girin.",
     "contactNameTooLong": "Ad en fazla 200 karakter olabilir.",
     "contactPhoneRequired": "İletişim kişisinin telefon numarasını girin.",
@@ -312,7 +307,9 @@
       "replaceHint": "değiştirmek için bir dosya seçin",
       "preview": "Önizleme",
       "download": "İndir",
-      "previewUnavailable": "Bu dosya türü burada gösterilemiyor. Açmak için indirin."
+      "previewUnavailable": "Bu dosya türü burada gösterilemiyor. Açmak için indirin.",
+      "referenceDocuments": "Referans belgeler",
+      "referenceDocumentsHint": "Bu belgeyi hazırlamanıza yardımcı olacak örnekler."
     },
     "review": {
       "title": "Başvurunuzu inceleyin",
@@ -420,7 +417,14 @@
     "success_one": "{{count}} başvuru ödendi.",
     "success_other": "{{count}} başvuru ödendi.",
     "addTheDifference": "Bakiye yükle",
-    "shortfallHint": "{{amount}} daha gerekiyor. Yüklenen tutar, harcanabilmesi için ekibimizce onaylanır."
+    "shortfallHint": "{{amount}} daha gerekiyor. Yüklenen tutar, harcanabilmesi için ekibimizce onaylanır.",
+    "payFrom": "Şuradan öde",
+    "notSoldInCurrency": "Bu hizmetler {{currency}} ile satılmıyor. Başka bir bakiye seçin.",
+    "repricedNotice": "{{currency}} ile ödeme, bu başvuruları hizmetlerin {{currency}} fiyatlarıyla fiyatlandırır.",
+    "notSoldShort": "Bu para biriminde mevcut değil",
+    "totalIn": "Toplam {{amount}}",
+    "balanceIs": "Bakiye {{amount}}",
+    "notEnough": "yetersiz"
   },
   "wallet": {
     "title": "Cüzdan",
@@ -522,7 +526,25 @@
     "chooseMethodInType": "Hangi {{type}} seçeneğini kullanmak istersiniz?",
     "change": "Değiştir",
     "selectMethod": "Bir ödeme yöntemi seçin",
-    "methodsAvailable": "{{n}} seçenek"
+    "methodsAvailable": "{{n}} seçenek",
+    "documentsTitle": "Gerekli belgeler",
+    "documentsHint": "Bu ödeme yöntemi her talepte bunları ister.",
+    "chooseFiles": "Dosya seç",
+    "documentLimits": "En fazla {{count}} dosya · her biri {{size}} · {{types}}",
+    "documentWrongType": "{{name}} bu belgenin kabul ettiği bir biçimde değil.",
+    "documentTooLarge": "{{name}}, {{size}} boyutundan büyük.",
+    "needDocument": "{{name}} ekleyin",
+    "needDetails": "{{name}} için bilgileri doldurun",
+    "detailsProvided": "Verdiğiniz bilgiler",
+    "mainCurrency": "Ana",
+    "balances": "Bakiyeleriniz",
+    "showStatement": "Hesap dökümünü göster",
+    "addFundsSubtitle": "Önce yükleme yapacağınız bakiyeyi, sonra parayı nasıl göndereceğinizi seçin.",
+    "depositsUnavailable": "Bakiye yükleme şu anda kullanılamıyor.",
+    "withdrawalsUnavailable": "Para çekme şu anda kullanılamıyor.",
+    "nothingToWithdraw": "Bakiyelerinizin hiçbirinde çekilecek para yok.",
+    "chooseBalanceToFund": "Hangi bakiyeye ekliyorsunuz?",
+    "chooseBalanceToWithdraw": "Hangi bakiyeden çekiyorsunuz?"
   },
   "details": {
     "backToList": "Başvurularıma dön",

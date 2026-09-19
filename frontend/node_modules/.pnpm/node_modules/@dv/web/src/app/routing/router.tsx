@@ -11,6 +11,8 @@ import { ApplicationDetailsPage } from '@/pages/applications/ApplicationDetailsP
 import { ApplicationLogPage } from '@/pages/applications/ApplicationLogPage';
 import { WalletPage } from '@/pages/wallet/WalletPage';
 import { WalletRequestDetailsPage } from '@/pages/wallet/WalletRequestDetailsPage';
+import { AddFundsPage } from '@/pages/wallet/AddFundsPage';
+import { WithdrawPage } from '@/pages/wallet/WithdrawPage';
 import { ToolsPage } from '@/pages/tools/ToolsPage';
 import { NotFoundPage } from '@/pages/errors/NotFoundPage';
 import { LanguageBoundary } from './LanguageBoundary';
@@ -148,6 +150,27 @@ export const router = createBrowserRouter([
               <RequireAuth>
                 <RequireSetup>
                   <WalletRequestDetailsPage />
+                </RequireSetup>
+              </RequireAuth>
+            ),
+          },
+          // Adding funds and withdrawing are pages of their own, reached from the wallet.
+          {
+            path: 'wallet/add-funds',
+            element: (
+              <RequireAuth>
+                <RequireSetup>
+                  <AddFundsPage />
+                </RequireSetup>
+              </RequireAuth>
+            ),
+          },
+          {
+            path: 'wallet/withdraw',
+            element: (
+              <RequireAuth>
+                <RequireSetup>
+                  <WithdrawPage />
                 </RequireSetup>
               </RequireAuth>
             ),

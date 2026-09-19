@@ -1,6 +1,7 @@
 ﻿using System.Reflection;
 using System.Text.Json;
 using DataVerification.Application.Features.Content;
+using DataVerification.Application.Features.Lookups.Admin;
 using DataVerification.Domain.Authorization;
 using DataVerification.Domain.Entities;
 using DataVerification.Domain.Enums;
@@ -39,6 +40,8 @@ public sealed class DataSeeder
         await SeedCountriesAndCurrenciesAsync(cancellationToken);
         await SeedAddresseesAsync(cancellationToken);
         await SeedWorldLookupsAsync(cancellationToken);
+        // After both currency seeders, so Egypt — mapped to EGP and USD — lands on EGP.
+        await CountryDefaultCurrencies.EnsureAsync(_db, null, cancellationToken);
         await SeedTransactionCascadeAsync(cancellationToken);
         await SeedPaymentMethodTypesAsync(cancellationToken);
         await SeedBanksAsync(cancellationToken);

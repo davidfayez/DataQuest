@@ -142,14 +142,10 @@
   },
   "setup": {
     "title": "Set up your order",
-    "subtitle": "Choose where your documents will be verified and the currency you will pay in.",
+    "subtitle": "Choose where your documents will be verified and who we should contact about your order.",
     "countryLabel": "Verification country",
     "countryPlaceholder": "Select a country",
     "countryHint": "This determines which authorities and services are available to you.",
-    "currencyLabel": "Currency",
-    "currencyPlaceholder": "Select a currency",
-    "currencyHint": "Your wallet will be opened in this currency and cannot be changed later.",
-    "selectCountryFirst": "Choose a country first",
     "contactNameLabel": "Contact person name",
     "contactNamePlaceholder": "Full name",
     "contactNameHint": "Who we should speak to about this order.",
@@ -158,7 +154,7 @@
     "contactPhoneHint": "Choose the country code, then enter the number without it.",
     "submit": "Confirm and open my wallet",
     "warningTitle": "This choice is permanent",
-    "warningBody": "Once your wallet is open, the verification country and currency are fixed for this order.",
+    "warningBody": "Once your wallet is open, the verification country is fixed for this order.",
     "successTitle": "Your order is ready",
     "successBody": "Your wallet has been opened in {{currency}}. You can now create your first application."
   },
@@ -169,7 +165,6 @@
     "orderNumberLength": "Enter the full order number from your email.",
     "passwordRequired": "Enter your password.",
     "countryRequired": "Select a verification country.",
-    "currencyRequired": "Select a currency.",
     "contactNameRequired": "Enter the contact person's name.",
     "contactNameTooLong": "The name must be 200 characters or fewer.",
     "contactPhoneRequired": "Enter the contact person's phone number.",
@@ -312,7 +307,9 @@
       "replaceHint": "choose a file to replace it",
       "preview": "Preview",
       "download": "Download",
-      "previewUnavailable": "This file type cannot be shown here. Download it to open it."
+      "previewUnavailable": "This file type cannot be shown here. Download it to open it.",
+      "referenceDocuments": "Reference documents",
+      "referenceDocumentsHint": "Examples to help you prepare this document."
     },
     "review": {
       "title": "Review your application",
@@ -422,7 +419,14 @@
     "success_one": "{{count}} application has been paid.",
     "success_other": "{{count}} applications have been paid.",
     "addTheDifference": "Add funds",
-    "shortfallHint": "You need {{amount}} more. Adding it goes to our team for confirmation before it can be spent."
+    "shortfallHint": "You need {{amount}} more. Adding it goes to our team for confirmation before it can be spent.",
+    "payFrom": "Pay from",
+    "notSoldInCurrency": "These services are not sold in {{currency}}. Choose another balance.",
+    "repricedNotice": "Paying in {{currency}} prices these applications using the services' {{currency}} prices.",
+    "notSoldShort": "Not available in this currency",
+    "totalIn": "Total {{amount}}",
+    "balanceIs": "Balance {{amount}}",
+    "notEnough": "not enough"
   },
   "wallet": {
     "title": "Wallet",
@@ -524,7 +528,25 @@
     "chooseMethodInType": "Which {{type}} would you like to use?",
     "change": "Change",
     "selectMethod": "Select a payment method",
-    "methodsAvailable": "{{n}} to choose from"
+    "methodsAvailable": "{{n}} to choose from",
+    "documentsTitle": "Required documents",
+    "documentsHint": "This payment method asks for these with every request.",
+    "chooseFiles": "Choose files",
+    "documentLimits": "Up to {{count}} file(s) · {{size}} each · {{types}}",
+    "documentWrongType": "{{name}} is not a format this document accepts.",
+    "documentTooLarge": "{{name}} is larger than {{size}}.",
+    "needDocument": "Attach {{name}}",
+    "needDetails": "Fill in the details for {{name}}",
+    "detailsProvided": "Details you provided",
+    "mainCurrency": "Main",
+    "balances": "Your balances",
+    "showStatement": "Show statement",
+    "addFundsSubtitle": "Choose the balance to top up, then how you are sending the money.",
+    "depositsUnavailable": "Adding funds is not available at the moment.",
+    "withdrawalsUnavailable": "Withdrawals are not available at the moment.",
+    "nothingToWithdraw": "None of your balances has money to withdraw.",
+    "chooseBalanceToFund": "Which balance are you adding to?",
+    "chooseBalanceToWithdraw": "Which balance are you withdrawing from?"
   },
   "details": {
     "backToList": "Back to my applications",

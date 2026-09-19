@@ -104,7 +104,8 @@ export interface SetupOrderResponse {
 
 export interface SetupOrderPayload {
   verificationCountryId: string;
-  currencyId: string;
+  /** Not asked for any more: the server uses the country's main currency. */
+  currencyId?: string;
   contactPersonName: string;
   /** ISO 3166-1 alpha-2 of the dial code chosen, e.g. `EG`. */
   contactPersonPhoneCountry: string;

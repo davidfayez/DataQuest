@@ -449,6 +449,9 @@ public interface IAiSettingsStore
 {
     Task<AiSettings> GetAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>The stored key, decrypted, or null when none is stored or it cannot be read.</summary>
+    Task<string?> GetApiKeyAsync(CancellationToken cancellationToken = default);
+
     /// <param name="clearApiKey">Removes the stored key; a blank <paramref name="apiKey"/> keeps it.</param>
     Task SaveAsync(
         AiSettings settings,

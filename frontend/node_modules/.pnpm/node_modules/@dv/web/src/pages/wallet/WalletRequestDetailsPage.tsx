@@ -17,6 +17,9 @@ import {
   useWalletRequest,
   WalletRequestStatus,
   WalletRequestType,
+  type WalletRequestDocumentValueDto,
+  type WalletRequestDto,
+  type WalletRequestFileDto,
 } from '@/entities/wallet/api';
 import { WalletRequestAttachment } from '@/features/wallet/WalletRequestAttachment';
 import { WalletRequestStatusBadge } from '@/features/wallet/WalletRequestsSection';
@@ -166,17 +169,42 @@ export function WalletRequestDetailsPage() {
             <CardContent className="p-6">
               <h2 className="font-medium">{t('wallet.proofTitle')}</h2>
 
-              {data.files.length === 0 ? (
+              {data.files.length === 0 && (data.documentValues ?? []).length === 0 ? (
                 <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                   <FileX2 className="size-4" aria-hidden="true" />
                   {t('wallet.noProof')}
                 </p>
               ) : (
-                <ul className="mt-4 flex flex-wrap items-start gap-3" data-testid="request-files">
-                  {data.files.map((file) => (
-                    <WalletRequestAttachment key={file.id} requestId={data.id} file={file} />
+                <div className="mt-4 space-y-5" data-testid="request-files">
+                  {groupDocuments(data, t('wallet.proof')).map((group) => (
+                    <section key={group.key} className="space-y-3">
+                      <h3 className="text-sm font-medium text-muted-foreground">{group.title}</h3>
+
+                      {group.files.length > 0 && (
+                        <ul className="flex flex-wrap items-start gap-3">
+                          {group.files.map((file) => (
+                            <WalletRequestAttachment key={file.id} requestId={data.id} file={file} />
+                          ))}
+                        </ul>
+                      )}
+
+                      {group.values.length > 0 && (
+                        <div className="rounded-xl bg-muted/60 p-3">
+                          <p className="mb-2 text-xs text-muted-foreground">
+                            {t('wallet.detailsProvided')}
+                          </p>
+                          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                            {group.values.map((value, index) => (
+                              <Row key={index} label={value.fieldName}>
+                                <span className="break-words">{value.value}</span>
+                              </Row>
+                            ))}
+                          </dl>
+                        </div>
+                      )}
+                    </section>
                   ))}
-                </ul>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -370,4 +398,41 @@ function Timeline({
 
 function Separator() {
   return <li aria-hidden="true" className="h-px w-6 bg-border" />;
+}
+
+interface DocumentGroup {
+  key: string;
+  title: string;
+  files: WalletRequestFileDto[];
+  values: WalletRequestDocumentValueDto[];
+}
+
+/**
+ * The request's files and details under the document they were sent for, general proof of
+ * transfer first.
+ */
+function groupDocuments(request: WalletRequestDto, proofTitle: string): DocumentGroup[] {
+  const groups: DocumentGroup[] = [];
+  const general = request.files.filter((file) => !file.requiredFileId);
+  if (general.length > 0) groups.push({ key: 'proof', title: proofTitle, files: general, values: [] });
+
+  const byDocument = new Map<string, DocumentGroup>();
+  const groupFor = (id: string, name: string | null) => {
+    let group = byDocument.get(id);
+    if (!group) {
+      group = { key: id, title: name ?? '', files: [], values: [] };
+      byDocument.set(id, group);
+      groups.push(group);
+    }
+    return group;
+  };
+
+  for (const file of request.files) {
+    if (file.requiredFileId) groupFor(file.requiredFileId, file.documentName).files.push(file);
+  }
+  for (const value of request.documentValues ?? []) {
+    groupFor(value.requiredFileId, value.documentName).values.push(value);
+  }
+
+  return groups;
 }

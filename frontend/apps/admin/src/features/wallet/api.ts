@@ -16,6 +16,18 @@ export interface WalletRequestFile {
   contentType: string;
   sizeBytes: number;
   createdAtUtc: string;
+  /** The payment method document this file was sent for; null for general proof of transfer. */
+  requiredFileId: string | null;
+  /** That document's name as it was when the file was sent. */
+  documentName: string | null;
+}
+
+/** One detail the applicant filled in beside a payment method's document. */
+export interface WalletRequestDocumentValue {
+  requiredFileId: string;
+  documentName: string;
+  fieldName: string;
+  value: string;
 }
 
 export interface AdminWalletRequest {
@@ -44,6 +56,8 @@ export interface AdminWalletRequest {
   confirmedAmount: number | null;
   confirmedReference: string | null;
   files: WalletRequestFile[];
+  /** What the applicant filled in beside the payment method's documents, in the order asked. */
+  documentValues: WalletRequestDocumentValue[];
 }
 
 /** One entry in a request's own trail, read from the audit log. */

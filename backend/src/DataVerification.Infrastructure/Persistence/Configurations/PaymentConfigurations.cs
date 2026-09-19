@@ -11,6 +11,11 @@ public sealed class PaymentMethodTypeConfiguration : LocalizedLookupConfiguratio
         builder.ToTable("PaymentMethodTypes");
         builder.Property(t => t.Kind).HasConversion<int>();
 
+        // Nullable so the types that predate descriptions stay valid; the admin command requires
+        // both on every save.
+        builder.Property(t => t.DescriptionAr).HasMaxLength(2000);
+        builder.Property(t => t.DescriptionEn).HasMaxLength(2000);
+
 // Columns now, not computed: what a provider needs is configuration, not a consequence
         // of its kind.
         builder.Property(t => t.RequiresAccountNumber).HasDefaultValue(false);
@@ -38,6 +43,8 @@ public sealed class PaymentMethodConfiguration : LocalizedLookupConfigurationBas
         builder.Property(m => m.PrivateNoteAr).HasMaxLength(2000);
         builder.Property(m => m.PrivateNoteEn).HasMaxLength(2000);
         builder.Property(m => m.ExternalUrl).HasMaxLength(2000);
+        builder.Property(m => m.GatewaySettingsJson).IsRequired();
+        builder.Property(m => m.GatewaySecretsJson).IsRequired();
 
         // Restrict, not Cascade: retiring a payment type must not silently take every method
         // configured against it — the type is deactivated instead.
@@ -48,6 +55,28 @@ public sealed class PaymentMethodConfiguration : LocalizedLookupConfigurationBas
 
         builder.HasIndex(m => new { m.PaymentMethodTypeId, m.IsActive });
         builder.HasIndex(m => m.SortOrder);
+
+        // Restrict: an integration still in use is deactivated, never removed from under a method.
+        builder.HasOne(m => m.GatewayIntegration)
+            .WithMany(i => i.PaymentMethods)
+            .HasForeignKey(m => m.GatewayIntegrationId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+public sealed class PaymentGatewayIntegrationConfiguration
+    : LocalizedLookupConfigurationBase<PaymentGatewayIntegration>
+{
+    protected override void ConfigureLookup(EntityTypeBuilder<PaymentGatewayIntegration> builder)
+    {
+        builder.ToTable("PaymentGatewayIntegrations");
+
+        builder.Property(i => i.DescriptionAr).HasMaxLength(2000);
+        builder.Property(i => i.DescriptionEn).HasMaxLength(2000);
+        builder.Property(i => i.GatewayCode).HasMaxLength(60).IsRequired();
+        builder.Property(i => i.Mode).HasConversion<int>();
+
+        builder.HasIndex(i => new { i.GatewayCode, i.IsActive });
     }
 }
 
@@ -138,12 +167,41 @@ public sealed class WalletRequestFileConfiguration : EntityConfigurationBase<Wal
         builder.Property(f => f.StoragePath).IsRequired().HasMaxLength(500);
         builder.Property(f => f.UploadedByName).HasMaxLength(200);
 
+        // Copied, not referenced: the request has to keep reading correctly after the document is
+        // renamed or removed.
+        builder.Property(f => f.DocumentNameAr).HasMaxLength(200);
+        builder.Property(f => f.DocumentNameEn).HasMaxLength(200);
+
         builder.HasOne(f => f.WalletRequest)
             .WithMany(r => r.Files)
             .HasForeignKey(f => f.WalletRequestId)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(f => f.WalletRequestId);
+    }
+}
+
+public sealed class WalletRequestDocumentValueConfiguration : EntityConfigurationBase<WalletRequestDocumentValue>
+{
+    protected override void ConfigureEntity(EntityTypeBuilder<WalletRequestDocumentValue> builder)
+    {
+        builder.ToTable("WalletRequestDocumentValues");
+
+        builder.Property(v => v.DocumentNameAr).IsRequired().HasMaxLength(200);
+        builder.Property(v => v.DocumentNameEn).IsRequired().HasMaxLength(200);
+        builder.Property(v => v.FieldNameAr).IsRequired().HasMaxLength(200);
+        builder.Property(v => v.FieldNameEn).IsRequired().HasMaxLength(200);
+        builder.Property(v => v.Value).IsRequired().HasMaxLength(1000);
+        builder.Property(v => v.ValueLabelAr).HasMaxLength(200);
+        builder.Property(v => v.ValueLabelEn).HasMaxLength(200);
+
+        builder.HasOne(v => v.WalletRequest)
+            .WithMany(r => r.DocumentValues)
+            .HasForeignKey(v => v.WalletRequestId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(v => v.WalletRequestId);
+        builder.HasIndex(v => v.RequiredFileId);
     }
 }
 

@@ -151,12 +151,42 @@ export interface PaymentResultDto {
 }
 
 /** Settles several applications in one wallet transaction; the server makes it all-or-nothing. */
+/** One balance the selected applications could be paid from, and what they would cost in it. */
+export interface PaymentQuoteOptionDto {
+  currencyId: string;
+  currencyCode: string;
+  currencySymbol: string;
+  isMain: boolean;
+  balance: number;
+  /** Null when a selected service is not sold in this currency. */
+  total: number | null;
+  /** The applications are already priced in this currency. */
+  isCurrent: boolean;
+  /** Priced in it and the balance covers it. */
+  canPay: boolean;
+}
+
+/** What paying the given applications would cost from each of the order's balances. */
+export function usePaymentQuote(applicationIds: string[], enabled: boolean) {
+  const ids = [...applicationIds].sort();
+
+  return useQuery({
+    queryKey: ['payment-quote', ids],
+    queryFn: () =>
+      apiClient.get<{ options: PaymentQuoteOptionDto[] }>('payments/quote', {
+        query: { applicationIds: ids },
+      }),
+    enabled: enabled && ids.length > 0,
+  });
+}
+
+/** Pays from the chosen balance; applications in another currency are priced again in it. */
 export function usePayApplications() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (applicationIds: string[]) =>
-      apiClient.post<PaymentResultDto>('payments', { applicationIds }),
+    mutationFn: ({ applicationIds, currencyId }: { applicationIds: string[]; currencyId?: string }) =>
+      apiClient.post<PaymentResultDto>('payments', { applicationIds, currencyId: currencyId ?? null }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['applications'] });
       void queryClient.invalidateQueries({ queryKey: ['wallet'] });

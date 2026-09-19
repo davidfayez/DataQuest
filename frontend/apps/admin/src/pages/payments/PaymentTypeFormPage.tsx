@@ -1,5 +1,5 @@
-import { AdminPanel, Alert, Field, Input, LoadingState, Select, cn } from '@dv/ui';
-import { useEffect, useState } from 'react';
+import { AdminPanel, Alert, Field, Input, LoadingState } from '@dv/ui';
+import { useEffect, useState, type TextareaHTMLAttributes } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { adminSession, Permissions } from '@/features/auth/session';
@@ -18,7 +18,8 @@ const LIST_PATH = '/payments/types';
 const EMPTY: UpsertPaymentMethodTypeBody = {
   nameAr: '',
   nameEn: '',
-  kind: PaymentMethodKind.Transfer,
+  descriptionAr: '',
+  descriptionEn: '',
   // Receiving numbers on by default: it is what nearly every transfer provider needs, and a type
   // with nothing switched on cannot be saved.
   requiresAccountNumber: true,
@@ -31,28 +32,12 @@ const EMPTY: UpsertPaymentMethodTypeBody = {
   isActive: true,
 };
 
-/** The two ways money can reach us, with the notice each one carries. */
-const KINDS = [
-  {
-    value: PaymentMethodKind.Transfer,
-    label: 'payments.kind.Transfer',
-    notice: 'payments.kindNotice.Transfer',
-  },
-  {
-    value: PaymentMethodKind.PayPal,
-    label: 'payments.kind.PayPal',
-    notice: 'payments.kindNotice.PayPal',
-  },
-] as const;
-
 /**
  * Create or edit one payment type.
  *
- * The kind answers one question only — does the applicant send money to us, or pay through PayPal.
- * Everything a particular provider needs is switched on below it, because those needs combine: one
- * transfer provider wants numbers and QR codes, another wants numbers each naming a bank, a third
- * wants a link as well. They used to be consequences of the kind, which meant a provider that did
- * not fit one of four shapes could not be expressed at all.
+ * There is no kind to choose: a type created here is a transfer — the applicant sends money to us
+ * and a reviewer confirms it — and what its provider needs is switched on below. An existing type
+ * keeps the kind it has, which is how the seeded PayPal type still shows as PayPal.
  */
 export function PaymentTypeFormPage() {
   const { t } = useTranslation();
@@ -67,6 +52,10 @@ export function PaymentTypeFormPage() {
   const list = usePaymentMethodTypes({ page: 1, pageSize: 200 });
   const existing = isEdit ? list.data?.items.find((row) => row.id === id) : undefined;
 
+  // Read-only now: shown through what the page offers, never chosen on it.
+  const kind = existing?.kind ?? PaymentMethodKind.Transfer;
+  const isTransfer = isTransferKind(kind);
+
   const [form, setForm] = useState<UpsertPaymentMethodTypeBody>(EMPTY);
   const save = useSavePaymentMethodType();
 
@@ -77,7 +66,8 @@ export function PaymentTypeFormPage() {
       id: existing.id,
       nameAr: existing.nameAr,
       nameEn: existing.nameEn,
-      kind: existing.kind,
+      descriptionAr: existing.descriptionAr ?? '',
+      descriptionEn: existing.descriptionEn ?? '',
       requiresAccountNumber: existing.requiresAccountNumber,
       requiresBarcode: existing.requiresBarcode,
       requiresBank: existing.requiresBank,
@@ -88,7 +78,6 @@ export function PaymentTypeFormPage() {
       isActive: existing.isActive,
     });
   }, [existing]);
-
 
   const canSubmit = isEdit
     ? adminSession.has(Permissions.PaymentMethodsUpdate)
@@ -152,7 +141,7 @@ export function PaymentTypeFormPage() {
             </Field>
           </AdminPanel>
 
-          <TypePreview form={form} />
+          <TypePreview form={form} needsApproval={isTransfer} />
         </>
       }
     >
@@ -180,156 +169,54 @@ export function PaymentTypeFormPage() {
         </div>
       </AdminPanel>
 
-      {/* AdminPanel's body applies no spacing of its own, so panels holding more than one block
-          space their own children. */}
-      <AdminPanel title={t('payments.kindLabel')} subtitle={t('payments.kindHint')}>
-        <div className="space-y-5">
-          <Field label={t('payments.kindLabel')} htmlFor="type-kind" required>
-            <Select
-              id="type-kind"
-              value={String(form.kind)}
-              onChange={(event) => patch({ kind: Number(event.target.value) as PaymentMethodKind })}
-              data-testid="payment-type-kind"
-            >
-              {KINDS.map((option) => (
-                <option key={option.value} value={String(option.value)}>
-                  {t(option.label)}
-                </option>
-              ))}
-            </Select>
+      <AdminPanel title={t('payments.description')} subtitle={t('payments.typeDescriptionHint')}>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={t('lookups.descriptionAr')} htmlFor="type-description-ar" required>
+            <DescriptionArea
+              id="type-description-ar"
+              dir="rtl"
+              value={form.descriptionAr}
+              onChange={(event) => patch({ descriptionAr: event.target.value })}
+              data-testid="type-description-ar"
+            />
           </Field>
 
-          <Alert variant="info">
-            {t(KINDS.find((option) => option.value === form.kind)?.notice ?? '')}
-          </Alert>
-
-{/* Switches now, not statements. A transfer type ticks whatever its provider needs, and
-              the method editor then shows exactly those panels. */}
-          {form.kind === PaymentMethodKind.Transfer ? (
-            <div className="space-y-1">
-              <FlagToggle
-                id="requires-accounts"
-                checked={form.requiresAccountNumber}
-                label={t('payments.flag.accounts')}
-                hint={t('payments.flag.accountsHint')}
-                onChange={(requiresAccountNumber) =>
-                  patch({
-                    requiresAccountNumber,
-                    // A QR code and a bank name both hang off a receiving row; without rows there
-                    // is nothing for them to belong to.
-                    ...(requiresAccountNumber ? {} : { requiresBarcode: false, requiresBank: false }),
-                  })
-                }
-              />
-
-              <FlagToggle
-                id="requires-barcode"
-                checked={form.requiresBarcode}
-                disabled={!form.requiresAccountNumber}
-                label={t('payments.flag.barcode')}
-                hint={t('payments.flag.barcodeHint')}
-                onChange={(requiresBarcode) => patch({ requiresBarcode })}
-              />
-
-              <FlagToggle
-                id="requires-bank"
-                checked={form.requiresBank}
-                disabled={!form.requiresAccountNumber}
-                label={t('payments.flag.bank')}
-                hint={t('payments.flag.bankHint')}
-                onChange={(requiresBank) => patch({ requiresBank })}
-              />
-
-              <FlagToggle
-                id="requires-link"
-                checked={form.requiresExternalUrl}
-                label={t('payments.flag.link')}
-                hint={t('payments.flag.linkHint')}
-                onChange={(requiresExternalUrl) => patch({ requiresExternalUrl })}
-              />
-
-              {/* Saving would be refused by the server; saying so here costs a round trip less. */}
-              {!form.requiresAccountNumber && !form.requiresExternalUrl && (
-                <Alert variant="warning">{t('payments.noWayToPay')}</Alert>
-              )}
-            </div>
-          ) : (
-            <Alert variant="info">{t('payments.payPalConfigured')}</Alert>
-          )}
+          <Field label={t('lookups.descriptionEn')} htmlFor="type-description-en" required>
+            <DescriptionArea
+              id="type-description-en"
+              dir="ltr"
+              value={form.descriptionEn}
+              onChange={(event) => patch({ descriptionEn: event.target.value })}
+              data-testid="type-description-en"
+            />
+          </Field>
         </div>
       </AdminPanel>
 
-      <AdminPanel title={t('payments.requires')} subtitle={t('payments.requiresHint')}>
-        <div className="space-y-1">
-          <FlagToggle
-            id="requires-proof"
-            checked={form.requiresProofDocument}
-            label={t('payments.flag.proof')}
-            hint={t('payments.flag.proofHint')}
-            onChange={(requiresProofDocument) => patch({ requiresProofDocument })}
-          />
-
-          <FlagToggle
-            id="requires-reference"
-            checked={form.requiresReferenceNumber}
-            label={t('payments.flag.reference')}
-            hint={t('payments.flag.referenceHint')}
-            onChange={(requiresReferenceNumber) => patch({ requiresReferenceNumber })}
-          />
-        </div>
-      </AdminPanel>
     </FormPageLayout>
   );
 }
 
-
-/**
- * One requirement switch. Each states what turning it on does to the applicant's form, because
- * that consequence is the whole reason the switch exists and is invisible from this screen.
- */
-function FlagToggle({
-  id,
-  checked,
-  label,
-  hint,
-  disabled = false,
-  onChange,
-}: {
-  id: string;
-  checked: boolean;
-  label: string;
-  hint: string;
-  /** For a switch that only means something once another one is on. */
-  disabled?: boolean;
-  onChange: (checked: boolean) => void;
-}) {
+/** A multi-line box styled like the package's inputs; the shared UI has no textarea of its own. */
+function DescriptionArea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
-    <label
-      htmlFor={id}
-      className={cn(
-        'flex items-start gap-3 rounded-xl p-3 transition-colors',
-        disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-ink-50',
-      )}
-    >
-      <input
-        id={id}
-        type="checkbox"
-        className="mt-0.5 size-4 rounded border-ink-300"
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
-        data-testid={id}
-      />
-      <span>
-        <span className="block text-sm font-semibold text-ink-900">{label}</span>
-        <span className="mt-0.5 block text-xs leading-relaxed text-ink-500">{hint}</span>
-      </span>
-    </label>
+    <textarea
+      rows={4}
+      maxLength={2000}
+      {...props}
+      className="flex w-full rounded-xl border-0 bg-white px-3.5 py-2.5 text-sm text-ink-900 shadow-soft ring-1 ring-ink-200 transition-shadow placeholder:text-ink-300 focus:outline-none focus:ring-2 focus:ring-brand-500"
+    />
   );
 }
 
 /** The deposit form these settings add up to, so their combined effect is visible while editing. */
-function TypePreview({ form }: { form: UpsertPaymentMethodTypeBody }) {
+function TypePreview({
+  form,
+  needsApproval,
+}: {
+  form: UpsertPaymentMethodTypeBody;
+  needsApproval: boolean;
+}) {
   const { t } = useTranslation();
 
   const steps = [
@@ -341,9 +228,7 @@ function TypePreview({ form }: { form: UpsertPaymentMethodTypeBody }) {
     form.requiresBarcode && t('payments.preview.scan'),
     form.requiresReferenceNumber && t('payments.preview.reference'),
     form.requiresProofDocument && t('payments.preview.proof'),
-    isTransferKind(form.kind)
-      ? t('payments.preview.approval')
-      : t('payments.preview.noApproval'),
+    needsApproval ? t('payments.preview.approval') : t('payments.preview.noApproval'),
   ].filter(Boolean) as string[];
 
   return (

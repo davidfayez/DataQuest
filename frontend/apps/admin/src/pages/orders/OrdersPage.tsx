@@ -17,6 +17,8 @@ export interface AdminOrderListItem {
   countryName: string | null;
   currencyCode: string | null;
   walletBalance: number;
+  /** Every balance the order holds money in, main currency first. */
+  balances?: Array<{ currencyCode: string; balance: number; isMain: boolean }>;
   applicationCount: number;
   createdAtUtc: string;
   lastLoginAtUtc: string | null;
@@ -107,9 +109,15 @@ export function OrdersPage() {
       align: 'end',
       getValue: (row) => row.walletBalance,
       render: (row) =>
-        row.currencyCode
-          ? `${formatNumber(row.walletBalance, locale)} ${row.currencyCode}`
-          : formatNumber(row.walletBalance, locale),
+        (row.balances?.length ?? 0) > 1
+          ? row
+              .balances!.map(
+                (balance) => `${formatNumber(balance.balance, locale)} ${balance.currencyCode}`,
+              )
+              .join(' · ')
+          : row.currencyCode
+            ? `${formatNumber(row.walletBalance, locale)} ${row.currencyCode}`
+            : formatNumber(row.walletBalance, locale),
     },
     {
       key: 'applicationCount',

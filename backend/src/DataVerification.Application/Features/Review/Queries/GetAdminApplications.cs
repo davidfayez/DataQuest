@@ -97,7 +97,8 @@ public sealed class GetAdminApplicationsQueryHandler
             a.PaidAtUtc,
             a.TotalCost,
             a.CreatedAtUtc,
-            CurrencyCode = a.Order!.Currency!.Code,
+            // Its own currency; the order's main one for rows from before that was recorded.
+            CurrencyCode = a.Currency != null ? a.Currency.Code : a.Order!.Currency!.Code,
             a.Order!.OrderNumber,
             a.Order!.Email,
             CountryNameAr = a.Order!.VerificationCountry!.NameAr,
@@ -245,6 +246,7 @@ public sealed class GetAdminApplicationDetailsQueryHandler
             .AsNoTracking()
             .AsSplitQuery()
             .Include(a => a.Order).ThenInclude(o => o!.Currency)
+            .Include(a => a.Currency)
             .Include(a => a.Names)
             .Include(a => a.Services).ThenInclude(s => s.ServiceType)
             .Include(a => a.Files).ThenInclude(f => f.RequiredFile)
@@ -267,7 +269,7 @@ public sealed class GetAdminApplicationDetailsQueryHandler
             application.IsPaid,
             application.PaidAtUtc,
             application.TotalCost,
-            application.Order?.Currency?.Code ?? string.Empty,
+            application.Currency?.Code ?? application.Order?.Currency?.Code ?? string.Empty,
             application.Order?.OrderNumber ?? string.Empty,
             application.Order?.Email ?? string.Empty,
             application.OrderId,

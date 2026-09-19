@@ -16,14 +16,15 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { adminSession, Permissions } from '@/features/auth/session';
 import { useAiSettings, useSaveAiSettings } from '@/features/settings/api';
+import { useStoredAiApiKey } from '@/features/settings/storedApiKeys';
 import { useApiErrorMessage } from '@/shared/lib/useApiError';
 
 /**
  * The assistant behind "AI Mode" on the tools and guides page.
  *
- * The key is write-only: the API never sends it back, so the field is always empty on load and a
- * blank one means "keep the stored key". That is what lets the switch or the model be changed
- * without pasting the key again, and it means a screenshot of this page gives nothing away.
+ * The field holds the saved key, masked until the eye button is pressed. Only a changed key is sent
+ * on save, so the switch or the model can be changed without re-storing the key, and "Remove key"
+ * is the way to take it back out.
  */
 export function AiAssistantCard() {
   const { t } = useTranslation();
@@ -32,6 +33,11 @@ export function AiAssistantCard() {
   const toMessage = useApiErrorMessage();
 
   const canUpdate = adminSession.has(Permissions.SettingsUpdate);
+
+  const stored = settings.data?.hasApiKey ?? false;
+  const canStore = settings.data?.canStore ?? false;
+  const savedKeyQuery = useStoredAiApiKey(canUpdate && canStore && stored);
+  const savedKey = stored ? (savedKeyQuery.data ?? '') : '';
 
   const [enabled, setEnabled] = useState(false);
   const [model, setModel] = useState('gemini-3.6-flash');
@@ -46,14 +52,16 @@ export function AiAssistantCard() {
     setModel(settings.data.model);
   }, [settings.data]);
 
+  // The field holds the saved key, masked, so the eye button shows what is stored.
+  useEffect(() => {
+    setApiKey(savedKey);
+  }, [savedKey]);
+
   if (settings.isPending) return null;
 
   if (settings.isError || !settings.data) {
     return <Alert variant="error">{t('errors.genericTitle')}</Alert>;
   }
-
-  const stored = settings.data.hasApiKey;
-  const canStore = settings.data.canStore;
 
   // Turning it on needs a key from somewhere: this form, or one saved earlier.
   const canEnable = stored || apiKey.trim().length > 0;
@@ -61,16 +69,21 @@ export function AiAssistantCard() {
   function submit(clearApiKey = false) {
     setSaved(false);
 
+    // Sending the saved key back unchanged would re-store it and log a key change that never was.
+    const trimmed = apiKey.trim();
+    const newKey = trimmed && trimmed !== savedKey ? trimmed : undefined;
+
     save.mutate(
       {
         isEnabled: clearApiKey ? false : enabled && canEnable,
         model: model.trim(),
-        apiKey: apiKey.trim() || undefined,
+        apiKey: newKey,
         clearApiKey,
       },
       {
         onSuccess: () => {
-          setApiKey('');
+          // A blanked field with no new key kept the stored one, so put it back on show.
+          if (!clearApiKey && !newKey) setApiKey(savedKey);
           setRevealed(false);
           setSaved(true);
         },
@@ -93,6 +106,7 @@ export function AiAssistantCard() {
         {/* Without the platform encryption key there is nowhere safe to put a provider key, so
             saying so here beats letting an operator paste one into a form that will refuse it. */}
         {!canStore && <Alert variant="error">{t('settings.ai.cannotStore')}</Alert>}
+        {savedKeyQuery.isError && <Alert variant="error">{toMessage(savedKeyQuery.error)}</Alert>}
 
         <Field label={t('settings.ai.apiKey')} htmlFor="ai-key" hint={t('settings.ai.apiKeyHint')}>
           <div className="flex gap-2">
@@ -101,6 +115,7 @@ export function AiAssistantCard() {
               type={revealed ? 'text' : 'password'}
               dir="ltr"
               autoComplete="off"
+              spellCheck={false}
               maxLength={200}
               value={apiKey}
               onChange={(event) => setApiKey(event.target.value)}
@@ -113,6 +128,7 @@ export function AiAssistantCard() {
               variant="outline"
               onClick={() => setRevealed((current) => !current)}
               aria-label={t(revealed ? 'settings.ai.hideKey' : 'settings.ai.showKey')}
+              aria-pressed={revealed}
             >
               {revealed ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             </Button>

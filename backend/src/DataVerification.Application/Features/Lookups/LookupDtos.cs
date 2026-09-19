@@ -54,12 +54,15 @@ public sealed record CurrencyDto(
     string NameAr,
     string NameEn,
     bool IsActive,
-    IReadOnlyList<Guid> CountryIds)
+    IReadOnlyList<Guid> CountryIds,
+    /// <summary>Set when listed for one country: whether it is that country's main currency.</summary>
+    bool IsDefault = false)
 {
     public static CurrencyDto From(
         Currency currency,
         string? languageCode,
-        IEnumerable<Guid>? countryIds = null) => new(
+        IEnumerable<Guid>? countryIds = null,
+        bool isDefault = false) => new(
         currency.Id,
         currency.Code,
         currency.Symbol,
@@ -67,7 +70,8 @@ public sealed record CurrencyDto(
         currency.NameAr,
         currency.NameEn,
         currency.IsActive,
-        countryIds?.Distinct().ToList() ?? []);
+        countryIds?.Distinct().ToList() ?? [],
+        isDefault);
 }
 
 /// <summary>A transaction type together with every country in which it is available.</summary>
@@ -155,7 +159,13 @@ public sealed record VerificationAuthorityDto(
 }
 
 /// <summary>One currency-specific price on a service type.</summary>
-public sealed record ServiceTypeCostDto(Guid CurrencyId, string? CurrencyCode, decimal Cost, decimal ExpressCost);
+public sealed record ServiceTypeCostDto(
+    Guid CurrencyId,
+    string? CurrencyCode,
+    decimal Cost,
+    decimal ExpressCost,
+    /// <summary>Whether the service is sold in this currency.</summary>
+    bool IsActive = true);
 
 /// <summary>
 /// A service type with everything the wizard's summary table and pricing need: cost, express
@@ -185,21 +195,32 @@ public sealed record ServiceTypeDto(
     IReadOnlyList<RequiredFileDto> RequiredFiles,
     /// <summary>Languages the result may be issued in, as configured by an administrator.</summary>
     IReadOnlyList<string> OutputLanguages,
-    string Code = "")
+    string Code = "",
+    /// <summary>The description is kept for the panel only; applicants are sent none.</summary>
+    bool HideDescription = false)
 {
+    /// <param name="forApplicant">
+    /// True where an applicant reads the result. A hidden description is then left out entirely —
+    /// in both languages, not only the resolved one — so it cannot be read off the response.
+    /// </param>
     public static ServiceTypeDto From(
         ServiceType serviceType,
         string? languageCode,
-        Guid? priceCurrencyId = null) => new(
+        Guid? priceCurrencyId = null,
+        bool forApplicant = false)
+    {
+        var withheld = forApplicant && serviceType.HideDescription;
+
+        return new(
         serviceType.Id,
         serviceType.VerificationAuthorityId,
         serviceType.SubTransactionTypeId,
         serviceType.ResolveName(languageCode),
         serviceType.NameAr,
         serviceType.NameEn,
-        serviceType.ResolveDescription(languageCode),
-        serviceType.DescriptionAr,
-        serviceType.DescriptionEn,
+        withheld ? null : serviceType.ResolveDescription(languageCode),
+        withheld ? null : serviceType.DescriptionAr,
+        withheld ? null : serviceType.DescriptionEn,
         serviceType.ExecutionTimeDays,
         ResolveCost(serviceType, priceCurrencyId),
         serviceType.EnableExpress,
@@ -211,12 +232,15 @@ public sealed record ServiceTypeDto(
         serviceType.IsActive,
         serviceType.ShowOnLanding,
         serviceType.Costs
+            // An applicant is only ever shown prices on sale.
+            .Where(c => !forApplicant || c.IsActive)
             .OrderBy(c => c.Currency?.Code ?? string.Empty)
             .Select(c => new ServiceTypeCostDto(
                 c.CurrencyId,
                 c.Currency?.Code,
                 c.Cost,
-                serviceType.EnableExpress ? c.ExpressCost : 0m))
+                serviceType.EnableExpress ? c.ExpressCost : 0m,
+                c.IsActive))
             .ToList(),
         serviceType.RequiredFiles
             .OrderByDescending(f => f.IsMandatory)
@@ -224,7 +248,9 @@ public sealed record ServiceTypeDto(
             .Select(f => RequiredFileDto.From(f, languageCode))
             .ToList(),
         serviceType.ResolveOutputLanguages(),
-        serviceType.Code);
+        serviceType.Code,
+        serviceType.HideDescription);
+    }
 
     private static decimal ResolveCost(ServiceType serviceType, Guid? priceCurrencyId)
     {
@@ -234,7 +260,8 @@ public sealed record ServiceTypeDto(
             if (match is not null) return match.Cost;
         }
 
-        return serviceType.Costs.OrderBy(c => c.Cost).FirstOrDefault()?.Cost ?? serviceType.Cost;
+        return serviceType.Costs.Where(c => c.IsActive).OrderBy(c => c.Cost).FirstOrDefault()?.Cost
+               ?? serviceType.Cost;
     }
 
     private static decimal ResolveExpressCost(ServiceType serviceType, Guid? priceCurrencyId)
@@ -245,14 +272,15 @@ public sealed record ServiceTypeDto(
             if (match is not null) return match.ExpressCost;
         }
 
-        return serviceType.Costs.OrderBy(c => c.Cost).FirstOrDefault()?.ExpressCost
+        return serviceType.Costs.Where(c => c.IsActive).OrderBy(c => c.Cost).FirstOrDefault()?.ExpressCost
                ?? serviceType.ExpressCost;
     }
 }
 
 public sealed record RequiredFileDto(
     Guid Id,
-    Guid ServiceTypeId,
+    /// <summary>Set on a service type's document; null on a payment method's.</summary>
+    Guid? ServiceTypeId,
     string Name,
     string NameAr,
     string NameEn,
@@ -267,7 +295,11 @@ public sealed record RequiredFileDto(
     /// </summary>
     IReadOnlyList<string> AllowedFileTypes,
     /// <summary>The same set as file extensions, for the upload control's accept list.</summary>
-    IReadOnlyList<string> AllowedExtensions)
+    IReadOnlyList<string> AllowedExtensions,
+    /// <summary>Labelled reference files an administrator attached, in display order.</summary>
+    IReadOnlyList<RequiredFileSampleDto> Samples,
+    /// <summary>Set on a payment method's document; null on a service type's.</summary>
+    Guid? PaymentMethodId = null)
 {
     public static RequiredFileDto From(ServiceTypeRequiredFile file, string? languageCode) => new(
         file.Id,
@@ -285,7 +317,47 @@ public sealed record RequiredFileDto(
             .Select(field => RequiredFileFieldDto.From(field, languageCode))
             .ToList(),
         file.ResolveAllowedFileTypes(),
-        DocumentFileTypes.ExtensionsForAll(file.ResolveAllowedFileTypes()));
+        DocumentFileTypes.ExtensionsForAll(file.ResolveAllowedFileTypes()),
+        RequiredFileSampleDto.ListFor(file, languageCode),
+        file.PaymentMethodId);
+}
+
+/// <summary>
+/// A reference file on a required document. The storage path never leaves the server: both realms
+/// fetch the bytes through an endpoint keyed on <see cref="Id"/>.
+/// </summary>
+public sealed record RequiredFileSampleDto(
+    Guid Id,
+    Guid RequiredFileId,
+    /// <summary>The label in the caller's language, falling back to the other.</summary>
+    string Label,
+    string LabelAr,
+    string LabelEn,
+    string FileName,
+    string ContentType,
+    long SizeBytes,
+    int SortOrder)
+{
+    public static RequiredFileSampleDto From(RequiredFileSample sample, string? languageCode) => new(
+        sample.Id,
+        sample.RequiredFileId,
+        sample.ResolveLabel(languageCode),
+        sample.LabelAr,
+        sample.LabelEn,
+        sample.FileName,
+        sample.ContentType,
+        sample.SizeBytes,
+        sample.SortOrder);
+
+    /// <summary>A document's files in display order. Empty when they were not loaded.</summary>
+    public static IReadOnlyList<RequiredFileSampleDto> ListFor(
+        ServiceTypeRequiredFile file,
+        string? languageCode) =>
+        file.Samples
+            .OrderBy(sample => sample.SortOrder)
+            .ThenBy(sample => sample.CreatedAtUtc)
+            .Select(sample => From(sample, languageCode))
+            .ToList();
 }
 
 /// <summary>A custom field the applicant fills in beside a required document.</summary>

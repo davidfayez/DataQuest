@@ -101,7 +101,7 @@ public sealed class AdminLookupsController : ControllerBase
         ArgumentNullException.ThrowIfNull(request);
 
         return Ok(await _sender.Send(
-            new SetCountryCurrenciesCommand(id, request.CurrencyIds),
+            new SetCountryCurrenciesCommand(id, request.CurrencyIds, request.DefaultCurrencyId),
             cancellationToken));
     }
 
@@ -294,6 +294,95 @@ public sealed class AdminLookupsController : ControllerBase
         Guid id,
         CancellationToken cancellationToken) =>
         Ok(await _sender.Send(new DeleteServiceTypeCommand(id), cancellationToken));
+
+    // ------------------------------------------- Reference files on required documents
+
+    /// <summary>
+    /// Attaches a labelled reference file — a sample or a template — to one required document.
+    /// The document must already be saved, since the file belongs to it.
+    /// </summary>
+    [HttpPost("service-types/required-files/{requiredFileId:guid}/samples")]
+    [RequirePermission(Permissions.ServiceTypesUpdate)]
+    [RequestSizeLimit(Domain.Entities.RequiredFileSampleLimits.MaxFileSizeBytes + 16384)]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting(RateLimitPolicies.Uploads)]
+    [ProducesResponseType(typeof(RequiredFileSampleDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<RequiredFileSampleDto>> UploadRequiredFileSample(
+        Guid requiredFileId,
+        [FromForm] UploadRequiredFileSampleRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (request.File is null || request.File.Length == 0)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "No file supplied",
+                Detail = "Attach a file to the 'file' form field.",
+            });
+        }
+
+        // Buffered to a seekable stream so the signature can be read and the same bytes then
+        // written to storage from the start.
+        await using var buffer = new MemoryStream();
+        await request.File.CopyToAsync(buffer, cancellationToken);
+        buffer.Position = 0;
+
+        return Ok(await _sender.Send(
+            new UploadRequiredFileSampleCommand(
+                requiredFileId,
+                request.LabelAr,
+                request.LabelEn,
+                buffer,
+                request.File.FileName,
+                request.File.Length),
+            cancellationToken));
+    }
+
+    /// <summary>Removes a reference file, and its bytes.</summary>
+    [HttpDelete("service-types/samples/{sampleId:guid}")]
+    [RequirePermission(Permissions.ServiceTypesUpdate)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteRequiredFileSample(
+        Guid sampleId,
+        CancellationToken cancellationToken)
+    {
+        await _sender.Send(new DeleteRequiredFileSampleCommand(sampleId), cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>A reference file's bytes, for the panel's preview.</summary>
+    [HttpGet("service-types/samples/{sampleId:guid}/file")]
+    [RequirePermission(Permissions.ServiceTypesView)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetRequiredFileSample(
+        Guid sampleId,
+        CancellationToken cancellationToken)
+    {
+        var file = await _sender.Send(
+            new GetRequiredFileSampleQuery(sampleId, ForApplicant: false, RequiredDocumentOwner.ServiceType),
+            cancellationToken);
+
+        Response.Headers.CacheControl = "private, no-store";
+        return File(file.Content, file.ContentType, file.FileName);
+    }
 }
 
-public sealed record SetCountryCurrenciesRequest(IReadOnlyList<Guid> CurrencyIds);
+/// <param name="CurrencyIds">Every currency the country offers.</param>
+/// <param name="DefaultCurrencyId">
+/// The main one — what orders in the country are set up in. Optional: without it the current main
+/// currency is kept if still offered, or one is picked.
+/// </param>
+public sealed record SetCountryCurrenciesRequest(
+    IReadOnlyList<Guid> CurrencyIds,
+    Guid? DefaultCurrencyId = null);
+
+/// <param name="File">A PDF, JPG, PNG, Word or Excel file.</param>
+/// <param name="LabelAr">What the file is, in Arabic.</param>
+/// <param name="LabelEn">What the file is, in English.</param>
+public sealed record UploadRequiredFileSampleRequest(IFormFile? File, string? LabelAr, string? LabelEn);

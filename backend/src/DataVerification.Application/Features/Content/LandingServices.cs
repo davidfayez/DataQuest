@@ -45,7 +45,8 @@ public sealed class GetLandingServicesHandler
             .Select(s => new LandingServiceDto(
                 s.Id,
                 isArabic ? s.NameAr : s.NameEn,
-                isArabic ? s.DescriptionAr : s.DescriptionEn,
+                // An administrator may keep a description for the panel only.
+                s.HideDescription ? null : (isArabic ? s.DescriptionAr : s.DescriptionEn),
                 s.Cost,
                 s.EnableExpress ? s.ExpressCost : 0m,
                 s.EnableExpress,

@@ -1,4 +1,4 @@
-import { AdminPageHeader, AdminPanel, Alert, Button, Field, Input, LoadingState } from '@dv/ui';
+import { AdminPageHeader, AdminPanel, Alert, Button, Field, Input, LoadingState, Select } from '@dv/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -54,6 +54,8 @@ export function CountryFormPage() {
 
   const [form, setForm] = useState<CountryBody>(EMPTY);
   const [currencyIds, setCurrencyIds] = useState<Set<string>>(new Set());
+  // The one orders in this country are set up in — the applicant no longer picks.
+  const [mainCurrencyId, setMainCurrencyId] = useState<string>('');
 
   // Every active currency to offer (the whole catalogue, not just the first page), and — when
   // editing — the ones already mapped to this country.
@@ -76,7 +78,17 @@ export function CountryFormPage() {
   useEffect(() => {
     if (!isEdit) return;
     setCurrencyIds(new Set((existingCurrencies.data ?? []).map((currency) => currency.id)));
+    setMainCurrencyId((existingCurrencies.data ?? []).find((currency) => currency.isDefault)?.id ?? '');
   }, [isEdit, existingCurrencies.data]);
+
+  // The main currency has to be one the country offers: dropping it from the list moves the
+  // choice to what is left, and a country with a single currency needs no choosing at all.
+  const offered = (allCurrencies.data?.items ?? []).filter((currency) => currencyIds.has(currency.id));
+  const effectiveMainId = currencyIds.has(mainCurrencyId)
+    ? mainCurrencyId
+    : offered.length === 1
+      ? offered[0]!.id
+      : '';
 
   const canSubmit = isEdit
     ? adminSession.has(Permissions.CountriesUpdate)
@@ -89,6 +101,8 @@ export function CountryFormPage() {
       const country = await apiClient.post<CountryDto>('admin/lookups/countries', body);
       await apiClient.put(`admin/lookups/countries/${country.id}/currencies`, {
         currencyIds: [...currencyIds],
+        // Left out when not chosen: the server keeps or picks one rather than refusing the save.
+        defaultCurrencyId: effectiveMainId || undefined,
       });
       return country;
     },
@@ -218,6 +232,34 @@ export function CountryFormPage() {
           onToggle={toggleCurrency}
           testIdPrefix="country-currency"
         />
+
+        {offered.length > 0 && (
+          <div className="mt-6 border-t border-border pt-6">
+            <Field
+              label={t('lookups.mainCurrency')}
+              htmlFor="country-main-currency"
+              required
+              hint={t('lookups.mainCurrencyHint')}
+            >
+              <Select
+                id="country-main-currency"
+                value={effectiveMainId}
+                disabled={offered.length === 1}
+                onChange={(event) => setMainCurrencyId(event.target.value)}
+                data-testid="country-main-currency"
+              >
+                {offered.length > 1 && !effectiveMainId && (
+                  <option value="">{t('lookups.mainCurrencyAuto')}</option>
+                )}
+                {offered.map((currency) => (
+                  <option key={currency.id} value={currency.id}>
+                    {currency.name} ({currency.code})
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+        )}
       </AdminPanel>
     </FormPageLayout>
   );

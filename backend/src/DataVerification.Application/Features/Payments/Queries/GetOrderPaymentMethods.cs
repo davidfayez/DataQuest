@@ -8,9 +8,11 @@ namespace DataVerification.Application.Features.Payments.Queries;
 
 /// <summary>
 /// The payment methods the calling applicant may actually use: offered in the country their order
-/// was set up for, accepting their wallet's currency, and complete enough to pay through.
+/// was set up for, accepting the currency being added (the order's main currency when none is
+/// named), and complete enough to pay through.
 /// </summary>
-public sealed record GetOrderPaymentMethodsQuery : IRequest<IReadOnlyList<PaymentMethodOptionDto>>;
+public sealed record GetOrderPaymentMethodsQuery(Guid? CurrencyId = null)
+    : IRequest<IReadOnlyList<PaymentMethodOptionDto>>;
 
 public sealed class GetOrderPaymentMethodsQueryHandler
     : IRequestHandler<GetOrderPaymentMethodsQuery, IReadOnlyList<PaymentMethodOptionDto>>
@@ -39,12 +41,12 @@ public sealed class GetOrderPaymentMethodsQueryHandler
             ?? throw new NotFoundException("Order", orderId);
 
         // Before setup there is no country and no wallet, so there is nothing to pay into yet.
-        if (order.VerificationCountryId is not { } countryId || order.CurrencyId is not { } currencyId)
+        if (order.VerificationCountryId is not { } countryId || order.CurrencyId is not { } mainCurrencyId)
         {
             return [];
         }
 
-        return await LoadUsableMethodsAsync(countryId, currencyId, cancellationToken);
+        return await LoadUsableMethodsAsync(countryId, request.CurrencyId ?? mainCurrencyId, cancellationToken);
     }
 
     /// <summary>
@@ -65,6 +67,13 @@ public sealed class GetOrderPaymentMethodsQueryHandler
             .Include(method => method.Type)
             .Include(method => method.Accounts)
             .ThenInclude(account => account.Bank)
+            // The documents the deposit form asks for, with their details and reference files.
+            // Split, so the collections are not multiplied into one wide result set.
+            .Include(method => method.RequiredFiles).ThenInclude(document => document.Fields)
+                .ThenInclude(field => field.Options)
+            .Include(method => method.RequiredFiles).ThenInclude(document => document.AllowedFileTypes)
+            .Include(method => method.RequiredFiles).ThenInclude(document => document.Samples)
+            .AsSplitQuery()
             .Where(method => method.IsActive
                 && method.Type!.IsActive
                 && method.CountryLinks.Any(link => link.CountryId == countryId)

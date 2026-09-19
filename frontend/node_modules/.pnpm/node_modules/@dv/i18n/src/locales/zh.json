@@ -131,14 +131,10 @@
   },
   "setup": {
     "title": "设置您的订单",
-    "subtitle": "请选择文件的认证国家以及付款所用的货币。",
+    "subtitle": "选择文件的认证国家，以及我们就订单联系的人。",
     "countryLabel": "认证国家",
     "countryPlaceholder": "请选择国家",
     "countryHint": "该选择决定您可使用的认证机构和服务。",
-    "currencyLabel": "货币",
-    "currencyPlaceholder": "请选择货币",
-    "currencyHint": "您的钱包将以该货币开通，之后无法更改。",
-    "selectCountryFirst": "请先选择国家",
     "contactNameLabel": "联系人姓名",
     "contactNamePlaceholder": "全名",
     "contactNameHint": "我们就此订单应联系的人。",
@@ -147,7 +143,7 @@
     "contactPhoneHint": "先选择国家区号，再输入不含区号的号码。",
     "submit": "确认并开通钱包",
     "warningTitle": "此选择不可更改",
-    "warningBody": "钱包开通后，本订单的认证国家和货币将无法修改。",
+    "warningBody": "钱包开通后，此订单的认证国家将无法更改。",
     "successTitle": "您的订单已就绪",
     "successBody": "您的钱包已以 {{currency}} 开通。现在可以创建第一份申请了。"
   },
@@ -158,7 +154,6 @@
     "orderNumberLength": "请输入邮件中完整的订单编号。",
     "passwordRequired": "请填写密码。",
     "countryRequired": "请选择认证国家。",
-    "currencyRequired": "请选择货币。",
     "contactNameRequired": "请输入联系人姓名。",
     "contactNameTooLong": "姓名不得超过 200 个字符。",
     "contactPhoneRequired": "请输入联系人电话号码。",
@@ -300,7 +295,9 @@
       "replaceHint": "选择文件以替换",
       "preview": "预览",
       "download": "下载",
-      "previewUnavailable": "此文件类型无法在此显示，请下载后打开。"
+      "previewUnavailable": "此文件类型无法在此显示，请下载后打开。",
+      "referenceDocuments": "参考文件",
+      "referenceDocumentsHint": "帮助您准备此文件的示例。"
     },
     "review": {
       "title": "核对您的申请",
@@ -406,7 +403,14 @@
     "insufficientBody": "需要 {{required}}，您的钱包余额为 {{available}}。",
     "success_other": "已支付 {{count}} 份申请。",
     "addTheDifference": "充值",
-    "shortfallHint": "还差 {{amount}}。充值需经我们团队确认后方可使用。"
+    "shortfallHint": "还差 {{amount}}。充值需经我们团队确认后方可使用。",
+    "payFrom": "支付来源",
+    "notSoldInCurrency": "这些服务不以{{currency}}销售，请选择其他余额。",
+    "repricedNotice": "以{{currency}}支付时，这些申请将按服务的{{currency}}价格计价。",
+    "notSoldShort": "此币种不可用",
+    "totalIn": "合计 {{amount}}",
+    "balanceIs": "余额 {{amount}}",
+    "notEnough": "不足"
   },
   "wallet": {
     "title": "钱包",
@@ -508,7 +512,25 @@
     "chooseMethodInType": "您想使用哪个{{type}}？",
     "change": "更改",
     "selectMethod": "选择支付方式",
-    "methodsAvailable": "{{n}} 个可选"
+    "methodsAvailable": "{{n}} 个可选",
+    "documentsTitle": "所需文件",
+    "documentsHint": "此付款方式每次申请都需要这些文件。",
+    "chooseFiles": "选择文件",
+    "documentLimits": "最多 {{count}} 个文件 · 每个 {{size}} · {{types}}",
+    "documentWrongType": "{{name}} 的格式不被此文件接受。",
+    "documentTooLarge": "{{name}} 大于 {{size}}。",
+    "needDocument": "请附上{{name}}",
+    "needDetails": "请填写{{name}}的详细信息",
+    "detailsProvided": "您提供的详细信息",
+    "mainCurrency": "主要",
+    "balances": "您的余额",
+    "showStatement": "查看明细",
+    "addFundsSubtitle": "先选择要充值的余额，再选择汇款方式。",
+    "depositsUnavailable": "目前无法充值。",
+    "withdrawalsUnavailable": "目前无法提现。",
+    "nothingToWithdraw": "您的余额中没有可提现的资金。",
+    "chooseBalanceToFund": "您要为哪个余额充值？",
+    "chooseBalanceToWithdraw": "您要从哪个余额提现？"
   },
   "details": {
     "backToList": "返回我的申请",

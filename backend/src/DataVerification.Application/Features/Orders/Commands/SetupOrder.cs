@@ -9,10 +9,13 @@ namespace DataVerification.Application.Features.Orders.Commands;
 /// <summary>
 /// Locks the order's verification country and wallet currency, and records the person to contact
 /// about it. Runs once — the wallet's ledger would otherwise mix denominations.
+///
+/// The applicant no longer picks the currency: without <see cref="CurrencyId"/> the order takes the
+/// country's main currency. A currency sent explicitly is still honoured, for older clients.
 /// </summary>
 public sealed record SetupOrderCommand(
     Guid VerificationCountryId,
-    Guid CurrencyId,
+    Guid? CurrencyId,
     string ContactPersonName,
     string ContactPersonPhoneCountry,
     string ContactPersonPhoneCode,
@@ -33,7 +36,10 @@ public sealed class SetupOrderCommandValidator : AbstractValidator<SetupOrderCom
     public SetupOrderCommandValidator()
     {
         RuleFor(c => c.VerificationCountryId).NotEmpty();
-        RuleFor(c => c.CurrencyId).NotEmpty();
+        RuleFor(c => c.CurrencyId)
+            .Must(id => id != Guid.Empty)
+            .When(c => c.CurrencyId is not null)
+            .WithMessage("'Currency Id' must not be empty.");
 
         RuleFor(c => c.ContactPersonName)
             .NotEmpty()
@@ -86,7 +92,7 @@ public sealed class SetupOrderCommandHandler : IRequestHandler<SetupOrderCommand
             ?? throw new ForbiddenAccessException("This endpoint is only available to applicants.");
 
         var order = await _db.Orders
-            .Include(o => o.Wallet)
+            .Include(o => o.Wallets)
             .FirstOrDefaultAsync(o => o.Id == orderId, cancellationToken)
             ?? throw new NotFoundException("Order", orderId);
 
@@ -107,9 +113,15 @@ public sealed class SetupOrderCommandHandler : IRequestHandler<SetupOrderCommand
             .FirstOrDefaultAsync(c => c.Id == request.VerificationCountryId && c.IsActive, cancellationToken)
             ?? throw new NotFoundException("Country", request.VerificationCountryId);
 
+        var currencyId = request.CurrencyId
+            ?? country.ResolveDefaultCurrencyId()
+            ?? throw new ConflictException(
+                "order.country_has_no_currency",
+                "This country has no currency set up yet. Please contact support.");
+
         var currency = await _db.Currencies
-            .FirstOrDefaultAsync(c => c.Id == request.CurrencyId && c.IsActive, cancellationToken)
-            ?? throw new NotFoundException("Currency", request.CurrencyId);
+            .FirstOrDefaultAsync(c => c.Id == currencyId && c.IsActive, cancellationToken)
+            ?? throw new NotFoundException("Currency", currencyId);
 
         // Order.CompleteSetup enforces the country/currency pairing and opens the wallet.
         var wallet = order.CompleteSetup(

@@ -125,6 +125,7 @@ public sealed class ContentController : ControllerBase
     /// <summary>Streams one footer mark. Public, because the footer is on every public page.</summary>
     [HttpGet("footer/logos/{id:guid}/image")]
     [AllowAnonymous]
+    [EmbeddableResource]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetFooterLogoImage(Guid id, CancellationToken cancellationToken)
@@ -153,6 +154,7 @@ public sealed class ContentController : ControllerBase
     /// </summary>
     [HttpGet("logo")]
     [AllowAnonymous]
+    [EmbeddableResource]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetLogo(CancellationToken cancellationToken)
@@ -193,6 +195,7 @@ public sealed class ContentController : ControllerBase
     /// </summary>
     [HttpGet("tools/{id:guid}/image")]
     [AllowAnonymous]
+    [EmbeddableResource]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetToolImage(Guid id, CancellationToken cancellationToken)

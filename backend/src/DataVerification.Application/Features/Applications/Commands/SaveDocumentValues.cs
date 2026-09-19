@@ -82,7 +82,8 @@ public sealed class SaveDocumentValuesCommandHandler
             .Include(f => f.Options)
             .Where(f => f.IsActive
                         && f.RequiredFile!.IsActive
-                        && serviceTypeIds.Contains(f.RequiredFile.ServiceTypeId))
+                        && f.RequiredFile.ServiceTypeId != null
+                        && serviceTypeIds.Contains(f.RequiredFile.ServiceTypeId.Value))
             .ToDictionaryAsync(f => f.Id, cancellationToken);
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);

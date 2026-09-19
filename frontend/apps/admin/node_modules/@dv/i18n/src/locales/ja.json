@@ -142,14 +142,10 @@
   },
   "setup": {
     "title": "注文を設定",
-    "subtitle": "書類を確認する国と支払い通貨を選択してください。",
+    "subtitle": "書類を認証する国と、ご注文について連絡する担当者を選択してください。",
     "countryLabel": "確認対象国",
     "countryPlaceholder": "国を選択",
     "countryHint": "利用できる機関とサービスが決まります。",
-    "currencyLabel": "通貨",
-    "currencyPlaceholder": "通貨を選択",
-    "currencyHint": "ウォレットはこの通貨で開設され、後から変更できません。",
-    "selectCountryFirst": "先に国を選択してください",
     "contactNameLabel": "担当者名",
     "contactNamePlaceholder": "氏名",
     "contactNameHint": "この注文についてご連絡する担当者です。",
@@ -158,7 +154,7 @@
     "contactPhoneHint": "国番号を選び、それを除いた番号を入力してください。",
     "submit": "確認してウォレットを開く",
     "warningTitle": "この選択は変更できません",
-    "warningBody": "ウォレット開設後、この注文の確認国と通貨は固定されます。",
+    "warningBody": "ウォレットが開設されると、この注文の認証国は変更できなくなります。",
     "successTitle": "注文の準備ができました",
     "successBody": "ウォレットを {{currency}} で開設しました。最初の申請を作成できます。"
   },
@@ -169,7 +165,6 @@
     "orderNumberLength": "メールに記載された注文番号をすべて入力してください。",
     "passwordRequired": "パスワードを入力してください。",
     "countryRequired": "確認対象国を選択してください。",
-    "currencyRequired": "通貨を選択してください。",
     "contactNameRequired": "担当者名を入力してください。",
     "contactNameTooLong": "名前は200文字以内で入力してください。",
     "contactPhoneRequired": "担当者の電話番号を入力してください。",
@@ -312,7 +307,9 @@
       "replaceHint": "差し替えるファイルを選択",
       "preview": "プレビュー",
       "download": "ダウンロード",
-      "previewUnavailable": "この形式のファイルはここでは表示できません。ダウンロードしてお開きください。"
+      "previewUnavailable": "この形式のファイルはここでは表示できません。ダウンロードしてお開きください。",
+      "referenceDocuments": "参考書類",
+      "referenceDocumentsHint": "この書類の準備に役立つ見本です。"
     },
     "review": {
       "title": "申請内容の確認",
@@ -420,7 +417,14 @@
     "success_one": "{{count}}件の申請を支払いました。",
     "success_other": "{{count}}件の申請を支払いました。",
     "addTheDifference": "入金する",
-    "shortfallHint": "あと {{amount}} 必要です。入金は担当者の確認後にご利用いただけます。"
+    "shortfallHint": "あと {{amount}} 必要です。入金は担当者の確認後にご利用いただけます。",
+    "payFrom": "支払い元",
+    "notSoldInCurrency": "これらのサービスは{{currency}}では販売されていません。別の残高を選んでください。",
+    "repricedNotice": "{{currency}}で支払うと、これらの申請はサービスの{{currency}}価格で計算されます。",
+    "notSoldShort": "この通貨では利用できません",
+    "totalIn": "合計 {{amount}}",
+    "balanceIs": "残高 {{amount}}",
+    "notEnough": "不足"
   },
   "wallet": {
     "title": "ウォレット",
@@ -522,7 +526,25 @@
     "chooseMethodInType": "どちらの{{type}}をご利用になりますか？",
     "change": "変更",
     "selectMethod": "お支払い方法を選択してください",
-    "methodsAvailable": "{{n}} 件から選択"
+    "methodsAvailable": "{{n}} 件から選択",
+    "documentsTitle": "必要書類",
+    "documentsHint": "この支払い方法では、申請ごとにこれらが必要です。",
+    "chooseFiles": "ファイルを選択",
+    "documentLimits": "最大 {{count}} ファイル · 各 {{size}} · {{types}}",
+    "documentWrongType": "{{name}} はこの書類で受け付けられない形式です。",
+    "documentTooLarge": "{{name}} は {{size}} を超えています。",
+    "needDocument": "{{name}} を添付してください",
+    "needDetails": "{{name}} の詳細を入力してください",
+    "detailsProvided": "入力した詳細",
+    "mainCurrency": "メイン",
+    "balances": "残高",
+    "showStatement": "明細を表示",
+    "addFundsSubtitle": "チャージする残高を選び、次に送金方法を選んでください。",
+    "depositsUnavailable": "現在チャージはご利用いただけません。",
+    "withdrawalsUnavailable": "現在出金はご利用いただけません。",
+    "nothingToWithdraw": "出金できる残高がありません。",
+    "chooseBalanceToFund": "どの残高にチャージしますか？",
+    "chooseBalanceToWithdraw": "どの残高から出金しますか？"
   },
   "details": {
     "backToList": "マイ申請に戻る",

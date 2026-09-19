@@ -30,6 +30,26 @@ public sealed class LookupsController : ControllerBase
         CancellationToken cancellationToken) =>
         Ok(await _sender.Send(new GetCountriesQuery(), cancellationToken));
 
+    /// <summary>
+    /// A reference file an administrator attached to a required document, shown beside the upload.
+    /// The same for every applicant, so any signed-in applicant may read it — but only while its
+    /// document and service are active.
+    /// </summary>
+    [HttpGet("required-files/samples/{sampleId:guid}/file")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetRequiredFileSample(
+        Guid sampleId,
+        CancellationToken cancellationToken)
+    {
+        var file = await _sender.Send(
+            new Application.Features.Lookups.Admin.GetRequiredFileSampleQuery(sampleId, ForApplicant: true),
+            cancellationToken);
+
+        Response.Headers.CacheControl = "private, max-age=300";
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
     /// <summary>The currencies the given country exposes.</summary>
     [HttpGet("countries/{countryId:guid}/currencies")]
     [ProducesResponseType(typeof(IReadOnlyList<CurrencyDto>), StatusCodes.Status200OK)]

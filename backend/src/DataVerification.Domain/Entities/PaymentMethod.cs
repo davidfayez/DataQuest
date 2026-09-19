@@ -61,11 +61,39 @@ public class PaymentMethod : LocalizedLookup
     public PaymentMethodIntegration? Integration { get; set; }
 
     /// <summary>
+    /// The gateway this method pays through, chosen from the Payment type integrations page. Null
+    /// for a method paid by hand. Replaces <see cref="Integration"/>, which is kept only so
+    /// settings saved before the catalogue existed are not lost.
+    /// </summary>
+    public Guid? GatewayIntegrationId { get; set; }
+
+    public PaymentGatewayIntegration? GatewayIntegration { get; set; }
+
+    /// <summary>
+    /// This method's own settings for its integration's gateway, as a JSON object of key to text —
+    /// a merchant ID, a return URL, whatever the gateway asks for. Readable by anyone who may view
+    /// the method.
+    /// </summary>
+    public string GatewaySettingsJson { get; set; } = "{}";
+
+    /// <summary>
+    /// The secret half of the same: keys, passwords and certificates, each encrypted on its own and
+    /// only decrypted for an administrator who asks to see one.
+    /// </summary>
+    public string GatewaySecretsJson { get; set; } = "{}";
+
+    /// <summary>
     /// Who to tell when money moves through this method — the finance mailbox, the operator on
     /// duty. Per method rather than platform-wide, because whoever reconciles InstaPay is rarely
     /// whoever reconciles the bank account.
     /// </summary>
     public ICollection<PaymentMethodNotificationEmail> NotificationEmails { get; set; } = [];
+
+    /// <summary>
+    /// The documents an applicant uploads with every deposit through this method, with the details
+    /// they fill in beside each — the same shape a service type asks for in the wizard.
+    /// </summary>
+    public ICollection<ServiceTypeRequiredFile> RequiredFiles { get; set; } = [];
 
     /// <summary>
     /// The addresses that asked to hear about this event. Duplicates are collapsed and blanks
@@ -157,8 +185,11 @@ public class PaymentMethod : LocalizedLookup
 /// (they transfer to us, or they pay through PayPal), and the row itself is the provider — Vodafone
 /// Cash, InstaPay, a bank. What that provider needs is switched on here, so the applicant's form is
 /// generated from these flags and nothing about a provider is hard-coded anywhere.
+///
+/// The kind is no longer chosen in the admin panel: a type created there is a transfer, and a type
+/// keeps whatever kind it was created with — which is how the seeded PayPal type stays PayPal.
 /// </remarks>
-public class PaymentMethodType : LocalizedLookup
+public class PaymentMethodType : DescribedLookup
 {
     public PaymentMethodKind Kind { get; set; }
 
@@ -333,6 +364,54 @@ public class WalletRequestFile : Entity
     public long SizeBytes { get; set; }
 
     public string? UploadedByName { get; set; }
+
+    /// <summary>
+    /// The payment method document this file was attached to, or null for general proof of the
+    /// transfer. Not a foreign key: the document's names are copied below, so the request keeps
+    /// reading correctly after an administrator renames or removes the document.
+    /// </summary>
+    public Guid? RequiredFileId { get; set; }
+
+    public string? DocumentNameAr { get; set; }
+
+    public string? DocumentNameEn { get; set; }
+}
+
+/// <summary>
+/// One detail the applicant filled in beside a payment method's required document, kept as it was
+/// submitted. The document, field and option names are copied rather than referenced, so the
+/// request still reads correctly after an administrator renames or removes any of them.
+/// </summary>
+public class WalletRequestDocumentValue : Entity
+{
+    public Guid WalletRequestId { get; set; }
+
+    public WalletRequest? WalletRequest { get; set; }
+
+    /// <summary>The document this answered, for grouping. Not a foreign key; see the summary.</summary>
+    public Guid RequiredFileId { get; set; }
+
+    /// <summary>The field this answered. Not a foreign key; see the summary.</summary>
+    public Guid RequiredFileFieldId { get; set; }
+
+    public string DocumentNameAr { get; set; } = string.Empty;
+
+    public string DocumentNameEn { get; set; } = string.Empty;
+
+    public string FieldNameAr { get; set; } = string.Empty;
+
+    public string FieldNameEn { get; set; } = string.Empty;
+
+    /// <summary>As entered; for a dropdown, the chosen option's value.</summary>
+    public required string Value { get; set; }
+
+    /// <summary>For a dropdown, the chosen option's labels; null for any other kind of field.</summary>
+    public string? ValueLabelAr { get; set; }
+
+    public string? ValueLabelEn { get; set; }
+
+    /// <summary>The order the fields were shown in, so the reviewer reads them the same way.</summary>
+    public int SortOrder { get; set; }
 }
 
 /// <summary>

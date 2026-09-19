@@ -146,6 +146,7 @@ public sealed class ApplicationQueryHandlers :
             .Include(a => a.TransactionType)
             .Include(a => a.SubTransactionType)
             .Include(a => a.VerificationAuthority)
+            .Include(a => a.Currency)
             .Where(a => a.OrderId == orderId);
 
         var isArabic = _currentUser.LanguageCode
@@ -156,9 +157,10 @@ public sealed class ApplicationQueryHandlers :
 
         return await query.ToPagedResultAsync(
             request,
+            // Its own currency; the order's main one for rows from before that was recorded.
             application => ApplicationDtoMapper.ToListItem(
                 application,
-                currencyCode,
+                application.Currency?.Code ?? currencyCode,
                 _currentUser.LanguageCode),
             cancellationToken);
     }

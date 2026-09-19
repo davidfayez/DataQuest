@@ -57,6 +57,9 @@ public class WalletRequest : Entity
     /// <summary>Receipts and screenshots proving the transfer landed.</summary>
     public ICollection<WalletRequestFile> Files { get; set; } = [];
 
+    /// <summary>The details filled in beside the payment method's required documents.</summary>
+    public ICollection<WalletRequestDocumentValue> DocumentValues { get; set; } = [];
+
     /// <summary>
     /// What the reviewer confirmed actually arrived, which is what the wallet is credited with.
     /// Kept apart from <see cref="Amount"/> — the applicant's claim — because the two disagreeing

@@ -25,6 +25,7 @@ public static class DependencyInjection
 
         // Shared engine behind every admin lookup CRUD screen.
         services.AddScoped<Features.Lookups.Admin.AdminLookupService>();
+        services.AddScoped<Features.Wallets.WalletBook>();
         services.AddScoped<Features.Payments.PaymentNotifier>();
 
         // Cascade validation and server-side pricing, shared by create and update.

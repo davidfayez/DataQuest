@@ -27,6 +27,7 @@ import {
   Menu,
   LogOut,
   PanelLeftClose,
+  Plug,
   PanelLeftOpen,
   Settings,
   Send,
@@ -76,6 +77,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/wallet-requests', labelKey: 'nav.walletRequests', icon: WalletCards, permissions: [Permissions.OrdersView], testId: 'nav-wallet-requests' },
       { to: '/payments/methods', labelKey: 'nav.paymentMethods', icon: CreditCard, permissions: [Permissions.PaymentMethodsView], testId: 'nav-payment-methods' },
       { to: '/payments/types', labelKey: 'nav.paymentTypes', icon: SlidersHorizontal, permissions: [Permissions.PaymentMethodsView], testId: 'nav-payment-types' },
+      { to: '/payments/integrations', labelKey: 'nav.paymentIntegrations', icon: Plug, permissions: [Permissions.PaymentMethodsView], testId: 'nav-payment-integrations' },
       { to: '/banks', labelKey: 'nav.banks', icon: Landmark, permissions: [Permissions.PaymentMethodsView], testId: 'nav-banks' },
       { to: '/clients', labelKey: 'nav.clients', icon: Building2, permissions: [Permissions.ClientsView], testId: 'nav-clients' },
     ],
@@ -216,6 +218,7 @@ function resolvePageTitle(pathname: string): string {
   if (pathname.startsWith('/tickets')) return 'nav.tickets';
   if (pathname.startsWith('/banks')) return 'nav.banks';
   if (pathname.startsWith('/payments/types')) return 'nav.paymentTypes';
+  if (pathname.startsWith('/payments/integrations')) return 'nav.paymentIntegrations';
   if (pathname.startsWith('/payments')) return 'nav.paymentMethods';
   if (pathname.startsWith('/lookups/')) {
     const key = pathname.split('/')[2];

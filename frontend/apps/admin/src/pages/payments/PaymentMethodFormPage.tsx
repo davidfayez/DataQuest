@@ -1,46 +1,42 @@
 import { AdminPanel, Alert, Field, Input, LoadingState, Select } from '@dv/ui';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Plug } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { adminSession, Permissions } from '@/features/auth/session';
 import { useCountries, useCurrencies } from '@/features/lookups/api';
+import { useUploadRequiredFileSample } from '@/features/lookups/requiredFileSamples';
 import {
-  PaymentIntegrationMode,
   usePaymentMethod,
   usePaymentMethodTypes,
   useSavePaymentMethod,
-  type PaymentIntegrationInput,
   type PaymentMethodAccountInput,
   type UpsertPaymentMethodBody,
 } from '@/features/payments/api';
+import {
+  usePaymentGatewayIntegrations,
+  usePaymentGateways,
+  type PaymentGatewayIntegrationDto,
+} from '@/features/payments/integrations';
 import { useApiErrorMessage } from '@/shared/lib/useApiError';
 import { FormPageLayout, StatusPanel, SummaryPanel } from '@/shared/ui/FormPageLayout';
+import { RequiredDocumentsEditor } from '../lookups/tabs/RequiredDocumentsEditor';
+import {
+  stripDocumentExtras,
+  toRequiredFileInput,
+  uploadPendingReferenceFiles,
+} from '../lookups/tabs/requiredDocuments';
 import { IdChecklist } from '../lookups/tabs/shared';
 import { AccountsEditor } from './AccountsEditor';
-import { IntegrationEditor } from './IntegrationEditor';
+import {
+  GatewaySettingsPanels,
+  gatewayFieldErrors,
+  settingsToSubmit,
+} from './GatewaySettingsFields';
+import { ModeBadge } from './IntegrationBadges';
 import { NotificationEmailsEditor } from './NotificationEmailsEditor';
 
 const LIST_PATH = '/payments/methods';
-
-/**
- * A blank integration. Every secret starts null — "not submitted" — so an untouched editor never
- * sends anything that could overwrite what is stored.
- */
-const EMPTY_INTEGRATION: PaymentIntegrationInput = {
-  provider: null,
-  mode: PaymentIntegrationMode.Sandbox,
-  merchantId: null,
-  integrationId: null,
-  apiKey: null,
-  password: null,
-  webhookSecret: null,
-  baseUrl: null,
-  redirectUrl: null,
-  cancelUrl: null,
-  callbackUrl: null,
-  sessionTimeoutMinutes: null,
-};
 
 const EMPTY: UpsertPaymentMethodBody = {
   paymentMethodTypeId: '',
@@ -59,8 +55,16 @@ const EMPTY: UpsertPaymentMethodBody = {
   currencyIds: [],
   accounts: [],
   notificationEmails: [],
-  integration: EMPTY_INTEGRATION,
+  requiredFiles: [],
+  gatewayIntegrationId: null,
+  gatewaySettings: {},
+  gatewaySecrets: {},
 };
+
+/** Carried to the edit page when the method saved but some of its reference files did not. */
+interface FormLocationState {
+  referenceFailures?: string[];
+}
 
 /**
  * Create or edit one payment method.
@@ -84,8 +88,12 @@ export function PaymentMethodFormPage() {
   const countries = useCountries({ page: 1, pageSize: 300, isActive: true });
   const currencies = useCurrencies({ page: 1, pageSize: 200, isActive: true });
   const save = useSavePaymentMethod();
+  const uploadSample = useUploadRequiredFileSample('paymentMethod');
+  const location = useLocation();
 
   const [form, setForm] = useState<UpsertPaymentMethodBody>(EMPTY);
+  const [isUploadingSamples, setIsUploadingSamples] = useState(false);
+  const referenceFailures = (location.state as FormLocationState | null)?.referenceFailures ?? [];
 
   useEffect(() => {
     const row = existing.data;
@@ -125,24 +133,11 @@ export function PaymentMethodFormPage() {
         notifyOnApproved: recipient.notifyOnApproved,
         notifyOnRejected: recipient.notifyOnRejected,
       })),
-      // The secrets stay null: the API never returns them, and null is what tells the server to
-      // keep whatever it already holds.
-      integration: row.integration
-        ? {
-            provider: row.integration.provider,
-            mode: row.integration.mode,
-            merchantId: row.integration.merchantId,
-            integrationId: row.integration.integrationId,
-            apiKey: null,
-            password: null,
-            webhookSecret: null,
-            baseUrl: row.integration.baseUrl,
-            redirectUrl: row.integration.redirectUrl,
-            cancelUrl: row.integration.cancelUrl,
-            callbackUrl: row.integration.callbackUrl,
-            sessionTimeoutMinutes: row.integration.sessionTimeoutMinutes,
-          }
-        : EMPTY_INTEGRATION,
+      requiredFiles: row.requiredFiles.map(toRequiredFileInput),
+      gatewayIntegrationId: row.gatewayIntegrationId,
+      gatewaySettings: { ...row.gatewaySettings },
+      // Nothing submitted: every stored secret is kept unless this edit changes it.
+      gatewaySecrets: {},
     });
   }, [existing.data]);
 
@@ -152,12 +147,44 @@ export function PaymentMethodFormPage() {
   // receiving numbers, and the editor has to offer both.
   const wantsLink = selectedType?.requiresExternalUrl ?? false;
 
-  // Whether this method talks to a provider at all — a payment link redirects into a gateway that
-  // has to settle back, and PayPal is one by definition. Taken from the server rather than decided
-  // here, because the command that stores the credentials reads the same property: when the two
-  // were worked out separately they disagreed, and the editor stopped offering a panel whose
-  // contents the command was still deleting.
-  const wantsCredentials = selectedType?.usesProviderCredentials ?? false;
+  // The gateway this method pays through, and what it asks for. Offered on every method: a manual
+  // transfer can be reconciled against a gateway too, and the type's own flags no longer decide it.
+  const integrations = usePaymentGatewayIntegrations({ page: 1, pageSize: 200, isActive: true });
+  const gateways = usePaymentGateways();
+  const chosenIntegration = integrations.data?.items.find(
+    (item) => item.id === form.gatewayIntegrationId,
+  );
+  // Falls back to what the method was saved with, so a retired integration still shows its fields.
+  const gatewayCode = chosenIntegration?.gatewayCode
+    ?? (existing.data?.gatewayIntegrationId === form.gatewayIntegrationId
+      ? existing.data?.gatewayCode ?? undefined
+      : undefined);
+  const gateway = gateways.data?.find((item) => item.code === gatewayCode);
+  const gatewayIsLive =
+    (chosenIntegration?.modeName ?? existing.data?.gatewayModeName) === 'Live';
+
+  // Secrets already stored on this method, but only while it stays on the same gateway.
+  const storedGatewaySecrets = useMemo(
+    () =>
+      existing.data && existing.data.gatewayIntegrationId === form.gatewayIntegrationId
+        ? new Set(existing.data.configuredGatewaySecrets)
+        : new Set<string>(),
+    [existing.data, form.gatewayIntegrationId],
+  );
+
+  const [showGatewayErrors, setShowGatewayErrors] = useState(false);
+  const gatewayErrors = useMemo(
+    () =>
+      gatewayFieldErrors(
+        gateway,
+        form.gatewaySettings ?? {},
+        form.gatewaySecrets ?? {},
+        storedGatewaySecrets,
+        gatewayIsLive,
+        t,
+      ),
+    [gateway, form.gatewaySettings, form.gatewaySecrets, storedGatewaySecrets, gatewayIsLive, t],
+  );
 
   const selectedCountries = useMemo(() => new Set(form.countryIds), [form.countryIds]);
 
@@ -207,16 +234,56 @@ export function PaymentMethodFormPage() {
     navigate(LIST_PATH);
   }
 
-  function submit() {
-    save.mutate(
-      {
+  async function submit() {
+    // The gateway would refuse these, and it says so beside each field rather than after a save.
+    if (gateway && Object.keys(gatewayErrors).length > 0) {
+      setShowGatewayErrors(true);
+      return;
+    }
+
+    const documents = form.requiredFiles ?? [];
+    let saved;
+    try {
+      saved = await save.mutateAsync({
         ...form,
         // An external link has nothing to transfer to, and a transfer has nowhere to send anyone.
         accounts: selectedType?.requiresAccountNumber ? form.accounts : [],
         externalUrl: wantsLink ? form.externalUrl : null,
-      },
-      { onSuccess: () => navigate(LIST_PATH, { state: { notice: t('lookups.saved') } }) },
+        requiredFiles: stripDocumentExtras(documents),
+        // The generic credentials panel this page used to carry is gone; its stored values are
+        // left untouched rather than cleared.
+        integration: undefined,
+        gatewayIntegrationId: form.gatewayIntegrationId || null,
+        gatewaySettings: settingsToSubmit(gateway, form.gatewaySettings ?? {}),
+        gatewaySecrets: form.gatewaySecrets ?? {},
+      });
+    } catch {
+      // Shown by the page's own error alert.
+      return;
+    }
+
+    // Reference files chosen on documents that were new until this save go up now that the
+    // documents have ids to belong to.
+    setIsUploadingSamples(true);
+    const { failures } = await uploadPendingReferenceFiles(
+      documents,
+      saved.requiredFiles,
+      (input) => uploadSample.mutateAsync(input),
+      toMessage,
     );
+    setIsUploadingSamples(false);
+
+    if (failures.length === 0) {
+      navigate(LIST_PATH, { state: { notice: t('lookups.saved') } });
+      return;
+    }
+
+    // The method exists now either way: reopen it, saying which files still need adding.
+    navigate(`${LIST_PATH}/${saved.id}/edit`, {
+      replace: true,
+      state: { referenceFailures: failures } satisfies FormLocationState,
+    });
+    if (isEdit) void existing.refetch();
   }
 
   if (isEdit && existing.isPending) {
@@ -245,8 +312,8 @@ export function PaymentMethodFormPage() {
       subtitle={t('payments.methodFormHint')}
       listLabel={t('payments.title')}
       onBack={goBack}
-      onSubmit={submit}
-      isPending={save.isPending}
+      onSubmit={() => void submit()}
+      isPending={save.isPending || isUploadingSamples}
       canSubmit={canSubmit}
       error={save.isError ? save.error : null}
       errorMessage={toMessage}
@@ -287,6 +354,12 @@ export function PaymentMethodFormPage() {
         </>
       }
     >
+      {referenceFailures.length > 0 && (
+        <Alert variant="warning" data-testid="reference-upload-failures">
+          {t('payments.referenceDocsUploadFailed', { files: referenceFailures.join(', ') })}
+        </Alert>
+      )}
+
       {/* AdminPanel's body applies no spacing of its own, so panels holding more than one block
           space their own children. */}
       <AdminPanel title={t('payments.sectionChannel')} subtitle={t('payments.sectionChannelHint')}>
@@ -365,14 +438,45 @@ export function PaymentMethodFormPage() {
         </AdminPanel>
       )}
 
-      {/* Credentials belong to a method the applicant pays online; a manual transfer has nothing
-          to authenticate against. The server drops any integration on a non-external type. */}
-      {wantsCredentials && (
-        <IntegrationEditor
-          stored={existing.data?.integration ?? null}
-          value={form.integration ?? EMPTY_INTEGRATION}
-          onChange={(integration) => patch({ integration })}
-          disabled={!canSubmit}
+      {/* A method the applicant pays online picks the gateway it goes through; a manual transfer has
+          nothing to connect to, and the server clears the choice on such a type. */}
+      <GatewayIntegrationPicker
+        items={integrations.data?.items ?? []}
+        isPending={integrations.isPending}
+        value={form.gatewayIntegrationId ?? null}
+        current={
+          existing.data?.gatewayIntegrationId
+            ? { id: existing.data.gatewayIntegrationId, name: existing.data.gatewayIntegrationName ?? '' }
+            : null
+        }
+        onChange={(gatewayIntegrationId) =>
+          // A different gateway asks for different things; its predecessor's values would be
+          // dropped by the server anyway.
+          patch({ gatewayIntegrationId, gatewaySettings: {}, gatewaySecrets: {} })
+        }
+      />
+
+      {gateway && (
+        <GatewaySettingsPanels
+          gateway={gateway}
+          settings={form.gatewaySettings ?? {}}
+          secrets={form.gatewaySecrets ?? {}}
+          storedSecrets={storedGatewaySecrets}
+          live={gatewayIsLive}
+          showErrors={showGatewayErrors}
+          errors={gatewayErrors}
+          canStoreSecrets={existing.data?.canStoreGatewaySecrets ?? true}
+          canReveal={isEdit && adminSession.has(Permissions.PaymentMethodsUpdate)}
+          methodId={id}
+          onSettingChange={(key, value) =>
+            patch({ gatewaySettings: { ...(form.gatewaySettings ?? {}), [key]: value } })
+          }
+          onSecretChange={(key, value) => {
+            const secrets = { ...(form.gatewaySecrets ?? {}) };
+            if (value === undefined) delete secrets[key];
+            else secrets[key] = value;
+            patch({ gatewaySecrets: secrets });
+          }}
         />
       )}
 
@@ -439,6 +543,19 @@ export function PaymentMethodFormPage() {
           onChange={(accounts: PaymentMethodAccountInput[]) => patch({ accounts })}
         />
       )}
+
+      <AdminPanel
+        title={t('payments.sectionDocuments')}
+        subtitle={t('payments.sectionDocumentsHint')}
+      >
+        <RequiredDocumentsEditor
+          documents={form.requiredFiles ?? []}
+          onChange={(requiredFiles) => patch({ requiredFiles })}
+          scope="paymentMethod"
+          allowEmpty
+          showHeading={false}
+        />
+      </AdminPanel>
 
       <NotificationEmailsEditor
         recipients={form.notificationEmails}
@@ -652,5 +769,76 @@ function LanguageFields({
         />
       </Field>
     </section>
+  );
+}
+
+/**
+ * Which configured gateway this method pays through. The integrations themselves — credentials,
+ * mode, the gateway's own settings — live on their own page.
+ */
+function GatewayIntegrationPicker({
+  items,
+  isPending,
+  value,
+  current,
+  onChange,
+}: {
+  items: PaymentGatewayIntegrationDto[];
+  isPending: boolean;
+  value: string | null;
+  /** The integration saved on the method, offered even if it has since been retired. */
+  current: { id: string; name: string } | null;
+  onChange: (id: string | null) => void;
+}) {
+  const { t } = useTranslation();
+  const selected = items.find((item) => item.id === value);
+  const retired = current && current.id === value && !selected ? current : null;
+
+  return (
+    <AdminPanel title={t('integrations.pickerTitle')} subtitle={t('integrations.pickerHint')}>
+      <div className="space-y-3">
+        <Field label={t('integrations.title')} htmlFor="method-gateway-integration">
+          <Select
+            id="method-gateway-integration"
+            value={value ?? ''}
+            onChange={(event) => onChange(event.target.value || null)}
+            data-testid="method-gateway-integration"
+          >
+            <option value="">{t('integrations.pickerNone')}</option>
+            {retired && (
+              <option value={retired.id}>
+                {retired.name} ({t('common.inactive')})
+              </option>
+            )}
+            {items.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name} — {item.gatewayName}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        {selected && (
+          <p className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <Plug className="size-4" aria-hidden="true" />
+            {selected.gatewayName}
+            <ModeBadge mode={selected.mode} />
+          </p>
+        )}
+
+        {retired && <Alert variant="warning">{t('integrations.pickerRetired')}</Alert>}
+
+        {!isPending && items.length === 0 && (
+          <Alert variant="info">{t('integrations.pickerEmpty')}</Alert>
+        )}
+
+        <Link
+          to="/payments/integrations"
+          className="inline-flex text-sm font-medium text-primary hover:underline"
+        >
+          {t('integrations.manage')}
+        </Link>
+      </div>
+    </AdminPanel>
   );
 }

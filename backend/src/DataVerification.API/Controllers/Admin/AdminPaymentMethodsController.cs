@@ -80,6 +80,25 @@ public sealed class AdminPaymentMethodsController : ControllerBase
     /// Saves the method and its whole configuration in one call — countries, currencies and the
     /// account list together, because a method saved without them is not a method anyone can pay.
     /// </summary>
+    /// <summary>
+    /// One stored gateway secret, in full, so the method's eye button can show it. Only for callers
+    /// who may change the method, never cached, and every read is audited.
+    /// </summary>
+    [HttpGet("{id:guid}/secrets/{key}")]
+    [RequirePermission(Permissions.PaymentMethodsUpdate)]
+    [ProducesResponseType(typeof(StoredGatewaySecretDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<StoredGatewaySecretDto>> GetSecret(
+        Guid id,
+        string key,
+        CancellationToken cancellationToken)
+    {
+        Response.Headers.CacheControl = "no-store";
+        Response.Headers.Pragma = "no-cache";
+        return Ok(await _sender.Send(new GetPaymentMethodSecretQuery(id, key), cancellationToken));
+    }
+
     [HttpPost]
     [ProducesResponseType(typeof(AdminPaymentMethodDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -162,6 +181,88 @@ public sealed class AdminPaymentMethodsController : ControllerBase
     {
         var download = await _sender.Send(new GetAccountBarcodeQuery(accountId), cancellationToken);
         return File(download.Content, download.ContentType);
+    }
+
+    // --------------------------------------------------------------- Types
+
+    // ------------------------------------------- Reference files on required documents
+
+    /// <summary>
+    /// Attaches a labelled reference file — a sample or a template — to one of a method's required
+    /// documents. The document must already be saved, since the file belongs to it.
+    /// </summary>
+    [HttpPost("required-files/{requiredFileId:guid}/samples")]
+    [RequirePermission(Permissions.PaymentMethodsUpdate)]
+    [RequestSizeLimit(Domain.Entities.RequiredFileSampleLimits.MaxFileSizeBytes + 16384)]
+    [EnableRateLimiting(RateLimitPolicies.Uploads)]
+    [ProducesResponseType(typeof(Application.Features.Lookups.RequiredFileSampleDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<Application.Features.Lookups.RequiredFileSampleDto>> UploadRequiredFileSample(
+        Guid requiredFileId,
+        [FromForm] UploadRequiredFileSampleRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (request.File is null || request.File.Length == 0)
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Status = StatusCodes.Status400BadRequest,
+                Title = "No file supplied",
+                Detail = "Attach a file to the 'file' form field.",
+            });
+        }
+
+        // Buffered to a seekable stream so the signature can be read and the same bytes then
+        // written to storage from the start.
+        await using var buffer = new MemoryStream();
+        await request.File.CopyToAsync(buffer, cancellationToken);
+        buffer.Position = 0;
+
+        return Ok(await _sender.Send(
+            new UploadRequiredFileSampleCommand(
+                requiredFileId,
+                request.LabelAr,
+                request.LabelEn,
+                buffer,
+                request.File.FileName,
+                request.File.Length,
+                RequiredDocumentOwner.PaymentMethod),
+            cancellationToken));
+    }
+
+    /// <summary>Removes a reference file from a method's document, and its bytes.</summary>
+    [HttpDelete("samples/{sampleId:guid}")]
+    [RequirePermission(Permissions.PaymentMethodsUpdate)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteRequiredFileSample(
+        Guid sampleId,
+        CancellationToken cancellationToken)
+    {
+        await _sender.Send(
+            new DeleteRequiredFileSampleCommand(sampleId, RequiredDocumentOwner.PaymentMethod),
+            cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>A reference file's bytes, for the editor's preview.</summary>
+    [HttpGet("samples/{sampleId:guid}/file")]
+    [RequirePermission(Permissions.PaymentMethodsView)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetRequiredFileSample(
+        Guid sampleId,
+        CancellationToken cancellationToken)
+    {
+        var file = await _sender.Send(
+            new GetRequiredFileSampleQuery(sampleId, ForApplicant: false, RequiredDocumentOwner.PaymentMethod),
+            cancellationToken);
+
+        Response.Headers.CacheControl = "private, no-store";
+        return File(file.Content, file.ContentType, file.FileName);
     }
 
     // --------------------------------------------------------------- Types

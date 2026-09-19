@@ -1,6 +1,7 @@
 using DataVerification.Application.Common.Exceptions;
 using DataVerification.Application.Common.Interfaces;
 using DataVerification.Application.Common.Models;
+using DataVerification.Domain.Entities;
 using DataVerification.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,12 @@ public sealed record GetOrdersQuery : PagedQuery, IRequest<PagedResult<AdminOrde
     public Guid[]? CurrencyIds { get; init; }
 }
 
+/// <summary>One of an order's balances.</summary>
+public sealed record AdminWalletBalanceDto(Guid CurrencyId, string CurrencyCode, decimal Balance, bool IsMain);
+
+/// <param name="CurrencyCode">The order's main currency.</param>
+/// <param name="WalletBalance">The balance in the main currency.</param>
+/// <param name="Balances">Every balance the order holds money in, main currency first.</param>
 public sealed record AdminOrderListItemDto(
     Guid Id,
     string OrderNumber,
@@ -27,7 +34,26 @@ public sealed record AdminOrderListItemDto(
     decimal WalletBalance,
     int ApplicationCount,
     DateTime CreatedAtUtc,
-    DateTime? LastLoginAtUtc);
+    DateTime? LastLoginAtUtc,
+    IReadOnlyList<AdminWalletBalanceDto>? Balances = null);
+
+internal static class AdminOrderBalances
+{
+    /// <summary>The balances an order holds, main currency first.</summary>
+    public static IReadOnlyList<AdminWalletBalanceDto> Of(Order order) =>
+        order.Wallets
+            .OrderByDescending(wallet => wallet.CurrencyId == order.CurrencyId)
+            .ThenBy(wallet => wallet.Currency?.Code, StringComparer.Ordinal)
+            .Select(wallet => new AdminWalletBalanceDto(
+                wallet.CurrencyId,
+                wallet.Currency?.Code ?? string.Empty,
+                wallet.Balance,
+                wallet.CurrencyId == order.CurrencyId))
+            .ToList();
+
+    public static decimal Main(Order order) =>
+        order.CurrencyId is { } id ? order.WalletFor(id)?.Balance ?? 0m : 0m;
+}
 
 public sealed class GetOrdersQueryHandler
     : IRequestHandler<GetOrdersQuery, PagedResult<AdminOrderListItemDto>>
@@ -53,8 +79,9 @@ public sealed class GetOrdersQueryHandler
             .AsNoTracking()
             .Include(o => o.VerificationCountry)
             .Include(o => o.Currency)
-            .Include(o => o.Wallet)
+            .Include(o => o.Wallets).ThenInclude(w => w.Currency)
             .Include(o => o.Applications)
+            .AsSplitQuery()
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.Search))
@@ -87,10 +114,11 @@ public sealed class GetOrdersQueryHandler
                 order.LanguageCode,
                 order.VerificationCountry?.ResolveName(language),
                 order.Currency?.Code,
-                order.Wallet?.Balance ?? 0m,
+                AdminOrderBalances.Main(order),
                 order.Applications.Count,
                 order.CreatedAtUtc,
-                order.LastLoginAtUtc),
+                order.LastLoginAtUtc,
+                AdminOrderBalances.Of(order)),
             cancellationToken);
     }
 }
@@ -108,7 +136,8 @@ public sealed record AdminOrderDetailsDto(
     decimal WalletBalance,
     DateTime CreatedAtUtc,
     DateTime? LastLoginAtUtc,
-    IReadOnlyList<AdminOrderApplicationDto> Applications);
+    IReadOnlyList<AdminOrderApplicationDto> Applications,
+    IReadOnlyList<AdminWalletBalanceDto>? Balances = null);
 
 /// <summary>
 /// One application on the order. <c>CanRefund</c> mirrors the domain rule, so the admin UI offers
@@ -123,7 +152,9 @@ public sealed record AdminOrderApplicationDto(
     bool IsPaid,
     decimal TotalCost,
     bool CanRefund,
-    DateTime CreatedAtUtc);
+    DateTime CreatedAtUtc,
+    /// <summary>The currency the application is priced in.</summary>
+    string? CurrencyCode = null);
 
 public sealed class GetOrderDetailsQueryHandler
     : IRequestHandler<GetOrderDetailsQuery, AdminOrderDetailsDto>
@@ -147,8 +178,9 @@ public sealed class GetOrderDetailsQueryHandler
             .AsNoTracking()
             .Include(o => o.VerificationCountry)
             .Include(o => o.Currency)
-            .Include(o => o.Wallet)
-            .Include(o => o.Applications)
+            .Include(o => o.Wallets).ThenInclude(w => w.Currency)
+            .Include(o => o.Applications).ThenInclude(a => a.Currency)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(o => o.Id == request.OrderId, cancellationToken)
             ?? throw new NotFoundException("Order", request.OrderId);
 
@@ -159,7 +191,7 @@ public sealed class GetOrderDetailsQueryHandler
             order.LanguageCode,
             order.VerificationCountry?.ResolveName(_currentUser.LanguageCode),
             order.Currency?.Code,
-            order.Wallet?.Balance ?? 0m,
+            AdminOrderBalances.Main(order),
             order.CreatedAtUtc,
             order.LastLoginAtUtc,
             order.Applications
@@ -173,7 +205,9 @@ public sealed class GetOrderDetailsQueryHandler
                     a.IsPaid,
                     a.TotalCost,
                     a.CanRefund(),
-                    a.CreatedAtUtc))
-                .ToList());
+                    a.CreatedAtUtc,
+                    a.Currency?.Code ?? order.Currency?.Code))
+                .ToList(),
+            AdminOrderBalances.Of(order));
     }
 }

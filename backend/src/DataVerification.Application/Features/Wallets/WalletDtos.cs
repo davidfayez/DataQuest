@@ -121,7 +121,12 @@ public sealed record WalletRequestDto(
     string? ReferenceNumber,
     decimal? ConfirmedAmount,
     string? ConfirmedReference,
-    IReadOnlyList<WalletRequestFileDto> Files)
+    IReadOnlyList<WalletRequestFileDto> Files,
+    /// <summary>
+    /// The details filled in beside the method's required documents. Loaded for a single request's
+    /// page; the queues leave it empty.
+    /// </summary>
+    IReadOnlyList<WalletRequestDocumentValueDto> DocumentValues)
 {
     /// <param name="languageCode">
     /// Resolves the method and account names. Optional: the queues that only need the money and the
@@ -167,9 +172,43 @@ public sealed record WalletRequestDto(
             request.ConfirmedReference,
             request.Files
                 .OrderBy(file => file.CreatedAtUtc)
-                .Select(WalletRequestFileDto.From)
+                .Select(file => WalletRequestFileDto.From(file, languageCode))
+                .ToList(),
+            request.DocumentValues
+                .OrderBy(value => value.SortOrder)
+                .Select(value => WalletRequestDocumentValueDto.From(value, languageCode))
                 .ToList());
     }
+}
+
+/// <summary>
+/// One detail filled in beside a payment method's required document, as the reviewer and the
+/// applicant read it — in their language, from the names copied when it was submitted.
+/// </summary>
+/// <param name="Value">For a dropdown, the chosen option's label; otherwise what was typed.</param>
+public sealed record WalletRequestDocumentValueDto(
+    Guid RequiredFileId,
+    string DocumentName,
+    string FieldName,
+    string Value)
+{
+    public static WalletRequestDocumentValueDto From(WalletRequestDocumentValue value, string? languageCode)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        var hasLabel = value.ValueLabelAr is not null || value.ValueLabelEn is not null;
+
+        return new(
+            value.RequiredFileId,
+            Pick(value.DocumentNameAr, value.DocumentNameEn, languageCode, value.DocumentNameEn),
+            Pick(value.FieldNameAr, value.FieldNameEn, languageCode, value.FieldNameEn),
+            hasLabel ? Pick(value.ValueLabelAr, value.ValueLabelEn, languageCode, value.Value) : value.Value);
+    }
+
+    private static string Pick(string? arabic, string? english, string? languageCode, string fallback) =>
+        LocalizedText.Resolve(arabic, english, languageCode) is { Length: > 0 } resolved
+            ? resolved
+            : fallback;
 }
 
 /// <summary>
@@ -225,7 +264,11 @@ public sealed record WalletRequestListRow(
     /// Fetched separately and handed in. Projecting them as a sub-collection put the receipts back
     /// into the join, and with them the ORDER BY that costs the memory grant.
     /// </param>
-    public WalletRequestDto ToDto(string? languageCode, IReadOnlyList<WalletRequestFileDto> files) => new(
+    /// <param name="values">The details beside the method's documents; only a single request's page loads them.</param>
+    public WalletRequestDto ToDto(
+        string? languageCode,
+        IReadOnlyList<WalletRequestFileDto> files,
+        IReadOnlyList<WalletRequestDocumentValueDto>? values = null) => new(
         Id,
         OrderId,
         OrderNumber,
@@ -257,5 +300,6 @@ public sealed record WalletRequestListRow(
         ReferenceNumber,
         ConfirmedAmount,
         ConfirmedReference,
-        files);
+        files,
+        values ?? []);
 }

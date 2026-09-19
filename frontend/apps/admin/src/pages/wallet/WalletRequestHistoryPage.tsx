@@ -20,6 +20,8 @@ import {
   WalletRequestStatus,
   WalletRequestType,
   type AdminWalletRequest,
+  type WalletRequestDocumentValue,
+  type WalletRequestFile,
   type WalletRequestHistoryEntry,
 } from '@/features/wallet/api';
 import { ProofFile } from '@/features/wallet/ProofFile';
@@ -302,16 +304,87 @@ function RequestSummary({ request, locale }: { request: AdminWalletRequest; loca
         </dl>
       </AdminPanel>
 
-      {request.files.length > 0 && (
-        <AdminPanel title={t('walletRequests.proof')}>
-          <ul className="space-y-3">
-            {request.files.map((file) => (
-              <ProofFile key={file.id} requestId={request.id} file={file} />
-            ))}
-          </ul>
-        </AdminPanel>
-      )}
+      <RequestDocuments request={request} />
     </div>
+  );
+}
+
+/** One heading on the documents panel: general proof, or one of the method's documents. */
+interface DocumentGroup {
+  key: string;
+  title: string;
+  files: WalletRequestFile[];
+  values: WalletRequestDocumentValue[];
+}
+
+/**
+ * The files and details the applicant sent, grouped by the document they were sent for. Proof of
+ * transfer comes first; each payment method document follows with the details typed beside it.
+ */
+function RequestDocuments({ request }: { request: AdminWalletRequest }) {
+  const { t } = useTranslation();
+
+  const groups: DocumentGroup[] = [];
+  const general = request.files.filter((file) => !file.requiredFileId);
+  if (general.length > 0) {
+    groups.push({ key: 'proof', title: t('walletRequests.generalProof'), files: general, values: [] });
+  }
+
+  const byDocument = new Map<string, DocumentGroup>();
+  const groupFor = (id: string, name: string | null) => {
+    let group = byDocument.get(id);
+    if (!group) {
+      group = { key: id, title: name ?? t('walletRequests.documents'), files: [], values: [] };
+      byDocument.set(id, group);
+      groups.push(group);
+    }
+    return group;
+  };
+  for (const file of request.files) {
+    if (file.requiredFileId) groupFor(file.requiredFileId, file.documentName).files.push(file);
+  }
+  for (const value of request.documentValues ?? []) {
+    groupFor(value.requiredFileId, value.documentName).values.push(value);
+  }
+
+  if (groups.length === 0) return null;
+
+  const onlyProof = groups.length === 1 && groups[0]!.key === 'proof';
+
+  return (
+    <AdminPanel title={onlyProof ? t('walletRequests.proof') : t('walletRequests.documents')}>
+      <div className="space-y-5" data-testid="request-documents">
+        {groups.map((group) => (
+          <section key={group.key} className="space-y-3">
+            {!onlyProof && (
+              <h3 className="text-sm font-semibold text-ink-900">{group.title}</h3>
+            )}
+
+            {group.files.length > 0 && (
+              <ul className="space-y-3">
+                {group.files.map((file) => (
+                  <ProofFile key={file.id} requestId={request.id} file={file} />
+                ))}
+              </ul>
+            )}
+
+            {group.values.length > 0 && (
+              <div className="rounded-xl bg-cream/50 p-3">
+                <p className="mb-2 text-xs text-ink-400">{t('walletRequests.detailsProvided')}</p>
+                <dl className="space-y-2 text-sm">
+                  {group.values.map((value, index) => (
+                    <div key={index} className="grid gap-0.5">
+                      <dt className="text-xs text-ink-400">{value.fieldName}</dt>
+                      <dd className="font-medium break-words text-ink-950">{value.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
+          </section>
+        ))}
+      </div>
+    </AdminPanel>
   );
 }
 

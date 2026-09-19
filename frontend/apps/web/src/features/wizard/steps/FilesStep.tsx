@@ -251,6 +251,42 @@ export function FilesStep({
                 </p>
               </div>
 
+              {/* Examples or templates an administrator attached, to look at before uploading. */}
+              {(requirement.samples ?? []).length > 0 && (
+                <div
+                  className="space-y-2 rounded-lg bg-muted/50 p-3"
+                  data-testid={`samples-${requirement.applicationServiceId}-${requirement.requiredFileId}`}
+                >
+                  <div>
+                    <p className="text-xs font-semibold">{t('wizard.files.referenceDocuments')}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {t('wizard.files.referenceDocumentsHint')}
+                    </p>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {requirement.samples.map((sample) => (
+                      <li
+                        key={sample.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white px-3 py-2 text-sm"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium">{sample.label}</span>
+                          <span className="block truncate text-xs text-muted-foreground" dir="ltr">
+                            {sample.fileName} · {formatSize(sample.sizeBytes)}
+                          </span>
+                        </span>
+                        <FilePreview
+                          fileId={sample.id}
+                          fileName={sample.fileName}
+                          contentType={sample.contentType}
+                          path={`required-files/samples/${sample.id}/file`}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {/* One input per file the document accepts, so "2 files allowed" reads as two
                   visible slots rather than a single box the applicant has to reuse. */}
               <div className="space-y-2">

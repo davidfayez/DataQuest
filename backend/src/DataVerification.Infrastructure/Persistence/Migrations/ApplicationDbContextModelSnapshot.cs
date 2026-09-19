@@ -903,6 +903,11 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CurrencyId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<bool>("IsDefault")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -912,6 +917,10 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CountryId", "CurrencyId")
                         .IsUnique();
+
+                    b.HasIndex(new[] { "CountryId" }, "IX_CountryCurrencies_MainPerCountry")
+                        .IsUnique()
+                        .HasFilter("[IsDefault] = 1");
 
                     b.ToTable("CountryCurrencies", (string)null);
                 });
@@ -1782,6 +1791,60 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                     b.ToTable("PasswordResetRequests", (string)null);
                 });
 
+            modelBuilder.Entity("DataVerification.Domain.Entities.PaymentGatewayIntegration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DescriptionAr")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("DescriptionEn")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("GatewayCode")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive");
+
+                    b.HasIndex("GatewayCode", "IsActive");
+
+                    b.ToTable("PaymentGatewayIntegrations", (string)null);
+                });
+
             modelBuilder.Entity("DataVerification.Domain.Entities.PaymentMethod", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1801,6 +1864,17 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                     b.Property<string>("ExternalUrl")
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid?>("GatewayIntegrationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("GatewaySecretsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("GatewaySettingsJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
@@ -1843,6 +1917,8 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("GatewayIntegrationId");
 
                     b.HasIndex("IsActive");
 
@@ -2101,6 +2177,14 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("DescriptionAr")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("DescriptionEn")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -2333,6 +2417,58 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                     b.ToTable("RequiredFileFieldOptions", (string)null);
                 });
 
+            modelBuilder.Entity("DataVerification.Domain.Entities.RequiredFileSample", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("LabelAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("LabelEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("RequiredFileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StoragePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequiredFileId", "SortOrder");
+
+                    b.ToTable("RequiredFileSamples", (string)null);
+                });
+
             modelBuilder.Entity("DataVerification.Domain.Entities.Role", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2434,6 +2570,9 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<bool>("HideDescription")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
@@ -2495,6 +2634,11 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("ExpressCost")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
 
                     b.Property<Guid>("ServiceTypeId")
                         .HasColumnType("uniqueidentifier");
@@ -2571,7 +2715,10 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<Guid>("ServiceTypeId")
+                    b.Property<Guid?>("PaymentMethodId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ServiceTypeId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
@@ -2581,9 +2728,14 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("IsActive");
 
+                    b.HasIndex("PaymentMethodId");
+
                     b.HasIndex("ServiceTypeId");
 
-                    b.ToTable("ServiceTypeRequiredFiles", (string)null);
+                    b.ToTable("ServiceTypeRequiredFiles", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ServiceTypeRequiredFiles_SingleOwner", "([ServiceTypeId] IS NOT NULL AND [PaymentMethodId] IS NULL) OR ([ServiceTypeId] IS NULL AND [PaymentMethodId] IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("DataVerification.Domain.Entities.SiteSetting", b =>
@@ -3188,6 +3340,9 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("CurrencyId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime?>("DeletedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -3228,6 +3383,8 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ApplicationNumber")
                         .IsUnique();
+
+                    b.HasIndex("CurrencyId");
 
                     b.HasIndex("Status");
 
@@ -3328,7 +3485,7 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CurrencyId");
 
-                    b.HasIndex("OrderId")
+                    b.HasIndex("OrderId", "CurrencyId")
                         .IsUnique();
 
                     b.ToTable("Wallets", (string)null);
@@ -3432,6 +3589,71 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                     b.ToTable("WalletRequests", (string)null);
                 });
 
+            modelBuilder.Entity("DataVerification.Domain.Entities.WalletRequestDocumentValue", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DocumentNameAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("DocumentNameEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("FieldNameAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("FieldNameEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("RequiredFileFieldId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("RequiredFileId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ValueLabelAr")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ValueLabelEn")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("WalletRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequiredFileId");
+
+                    b.HasIndex("WalletRequestId");
+
+                    b.ToTable("WalletRequestDocumentValues", (string)null);
+                });
+
             modelBuilder.Entity("DataVerification.Domain.Entities.WalletRequestFile", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3445,10 +3667,21 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("DocumentNameAr")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("DocumentNameEn")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasMaxLength(260)
                         .HasColumnType("nvarchar(260)");
+
+                    b.Property<Guid?>("RequiredFileId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint");
@@ -3900,11 +4133,18 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("DataVerification.Domain.Entities.PaymentMethod", b =>
                 {
+                    b.HasOne("DataVerification.Domain.Entities.PaymentGatewayIntegration", "GatewayIntegration")
+                        .WithMany("PaymentMethods")
+                        .HasForeignKey("GatewayIntegrationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("DataVerification.Domain.Entities.PaymentMethodType", "Type")
                         .WithMany("PaymentMethods")
                         .HasForeignKey("PaymentMethodTypeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("GatewayIntegration");
 
                     b.Navigation("Type");
                 });
@@ -4020,6 +4260,17 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                     b.Navigation("Field");
                 });
 
+            modelBuilder.Entity("DataVerification.Domain.Entities.RequiredFileSample", b =>
+                {
+                    b.HasOne("DataVerification.Domain.Entities.ServiceTypeRequiredFile", "RequiredFile")
+                        .WithMany("Samples")
+                        .HasForeignKey("RequiredFileId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RequiredFile");
+                });
+
             modelBuilder.Entity("DataVerification.Domain.Entities.RolePermission", b =>
                 {
                     b.HasOne("DataVerification.Domain.Entities.Permission", "Permission")
@@ -4090,11 +4341,17 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("DataVerification.Domain.Entities.ServiceTypeRequiredFile", b =>
                 {
+                    b.HasOne("DataVerification.Domain.Entities.PaymentMethod", "PaymentMethod")
+                        .WithMany("RequiredFiles")
+                        .HasForeignKey("PaymentMethodId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("DataVerification.Domain.Entities.ServiceType", "ServiceType")
                         .WithMany("RequiredFiles")
                         .HasForeignKey("ServiceTypeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("PaymentMethod");
 
                     b.Navigation("ServiceType");
                 });
@@ -4233,6 +4490,11 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("DataVerification.Domain.Entities.VerificationApplication", b =>
                 {
+                    b.HasOne("DataVerification.Domain.Entities.Currency", "Currency")
+                        .WithMany()
+                        .HasForeignKey("CurrencyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("DataVerification.Domain.Entities.Order", "Order")
                         .WithMany("Applications")
                         .HasForeignKey("OrderId")
@@ -4253,6 +4515,8 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("VerificationAuthorityId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Currency");
 
                     b.Navigation("Order");
 
@@ -4283,8 +4547,8 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.HasOne("DataVerification.Domain.Entities.Order", "Order")
-                        .WithOne("Wallet")
-                        .HasForeignKey("DataVerification.Domain.Entities.Wallet", "OrderId")
+                        .WithMany("Wallets")
+                        .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -4324,6 +4588,17 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                     b.Navigation("PaymentMethodAccount");
 
                     b.Navigation("Wallet");
+                });
+
+            modelBuilder.Entity("DataVerification.Domain.Entities.WalletRequestDocumentValue", b =>
+                {
+                    b.HasOne("DataVerification.Domain.Entities.WalletRequest", "WalletRequest")
+                        .WithMany("DocumentValues")
+                        .HasForeignKey("WalletRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("WalletRequest");
                 });
 
             modelBuilder.Entity("DataVerification.Domain.Entities.WalletRequestFile", b =>
@@ -4435,7 +4710,12 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                 {
                     b.Navigation("Applications");
 
-                    b.Navigation("Wallet");
+                    b.Navigation("Wallets");
+                });
+
+            modelBuilder.Entity("DataVerification.Domain.Entities.PaymentGatewayIntegration", b =>
+                {
+                    b.Navigation("PaymentMethods");
                 });
 
             modelBuilder.Entity("DataVerification.Domain.Entities.PaymentMethod", b =>
@@ -4449,6 +4729,8 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                     b.Navigation("Integration");
 
                     b.Navigation("NotificationEmails");
+
+                    b.Navigation("RequiredFiles");
                 });
 
             modelBuilder.Entity("DataVerification.Domain.Entities.PaymentMethodType", b =>
@@ -4489,6 +4771,8 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
                     b.Navigation("AllowedFileTypes");
 
                     b.Navigation("Fields");
+
+                    b.Navigation("Samples");
                 });
 
             modelBuilder.Entity("DataVerification.Domain.Entities.SubTransactionType", b =>
@@ -4563,6 +4847,8 @@ namespace DataVerification.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("DataVerification.Domain.Entities.WalletRequest", b =>
                 {
+                    b.Navigation("DocumentValues");
+
                     b.Navigation("Files");
                 });
 #pragma warning restore 612, 618

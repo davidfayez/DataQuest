@@ -20,6 +20,14 @@ public class Country : LocalizedLookup
 
     public ICollection<VerificationAuthority> VerificationAuthorities { get; set; } = [];
 
+    /// <summary>
+    /// The currency an order in this country is set up in: the one marked as main, or the only one
+    /// when the country has a single currency. Null when neither applies.
+    /// </summary>
+    public Guid? ResolveDefaultCurrencyId() =>
+        CountryCurrencies.FirstOrDefault(cc => cc.IsDefault)?.CurrencyId
+        ?? (CountryCurrencies.Count == 1 ? CountryCurrencies.First().CurrencyId : null);
+
     /// <summary>True when the currency is on this country's approved list.</summary>
     public bool SupportsCurrency(Guid currencyId) =>
         CountryCurrencies.Any(cc => cc.CurrencyId == currencyId);

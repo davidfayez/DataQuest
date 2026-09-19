@@ -23,15 +23,18 @@ public sealed class RefundApplicationCommandHandler
     private readonly IApplicationDbContext _db;
     private readonly ICurrentUser _currentUser;
     private readonly IAuditLogger _auditLogger;
+    private readonly WalletBook _wallets;
 
     public RefundApplicationCommandHandler(
         IApplicationDbContext db,
         ICurrentUser currentUser,
-        IAuditLogger auditLogger)
+        IAuditLogger auditLogger,
+        WalletBook wallets)
     {
         _db = db;
         _currentUser = currentUser;
         _auditLogger = auditLogger;
+        _wallets = wallets;
     }
 
     public async Task<RefundResultDto> Handle(
@@ -62,10 +65,8 @@ public sealed class RefundApplicationCommandHandler
                 cancellationToken)
             ?? throw new NotFoundException("Application", request.ApplicationId);
 
-        var wallet = await _db.Wallets
-            .Include(w => w.Currency)
-            .FirstOrDefaultAsync(w => w.OrderId == orderId, cancellationToken)
-            ?? throw new ConflictException("order.wallet_missing", "This order has no wallet.");
+        // Back into the balance it was paid from: the application's own currency.
+        var wallet = await _wallets.OpenAsync(orderId, application.CurrencyId, cancellationToken);
 
         var amount = application.TotalCost;
 
@@ -107,8 +108,11 @@ public sealed class RefundApplicationCommandHandler
     }
 }
 
-/// <summary>Admin top-up. v1 has no payment gateway, so funds are credited by an operator.</summary>
-public sealed record CreditWalletCommand(Guid OrderId, decimal Amount, string? Note)
+/// <summary>
+/// Admin top-up. v1 has no payment gateway, so funds are credited by an operator — into the
+/// order's balance in <paramref name="CurrencyId"/>, or its main currency when none is named.
+/// </summary>
+public sealed record CreditWalletCommand(Guid OrderId, decimal Amount, string? Note, Guid? CurrencyId = null)
     : IRequest<WalletSummaryDto>;
 
 public sealed class CreditWalletCommandValidator : AbstractValidator<CreditWalletCommand>
@@ -127,14 +131,18 @@ public sealed class CreditWalletCommandHandler : IRequestHandler<CreditWalletCom
     private readonly ICurrentUser _currentUser;
     private readonly IAuditLogger _auditLogger;
 
+    private readonly WalletBook _wallets;
+
     public CreditWalletCommandHandler(
         IApplicationDbContext db,
         ICurrentUser currentUser,
-        IAuditLogger auditLogger)
+        IAuditLogger auditLogger,
+        WalletBook wallets)
     {
         _db = db;
         _currentUser = currentUser;
         _auditLogger = auditLogger;
+        _wallets = wallets;
     }
 
     public async Task<WalletSummaryDto> Handle(
@@ -143,10 +151,7 @@ public sealed class CreditWalletCommandHandler : IRequestHandler<CreditWalletCom
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var wallet = await _db.Wallets
-            .Include(w => w.Currency)
-            .FirstOrDefaultAsync(w => w.OrderId == request.OrderId, cancellationToken)
-            ?? throw new NotFoundException("Wallet for order", request.OrderId);
+        var wallet = await _wallets.OpenAsync(request.OrderId, request.CurrencyId, cancellationToken);
 
         wallet.Credit(
             request.Amount,
@@ -161,7 +166,7 @@ public sealed class CreditWalletCommandHandler : IRequestHandler<CreditWalletCom
             "Wallet.Credited",
             "Wallet",
             wallet.Id,
-            new { request.OrderId, request.Amount, wallet.Balance, request.Note },
+            new { request.OrderId, request.Amount, Currency = wallet.Currency?.Code, wallet.Balance, request.Note },
             cancellationToken);
 
         return new WalletSummaryDto(

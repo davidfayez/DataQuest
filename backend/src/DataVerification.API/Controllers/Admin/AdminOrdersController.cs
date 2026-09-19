@@ -62,7 +62,7 @@ public sealed class AdminOrdersController : ControllerBase
         ArgumentNullException.ThrowIfNull(request);
 
         return Ok(await _sender.Send(
-            new CreditWalletCommand(orderId, request.Amount, request.Note),
+            new CreditWalletCommand(orderId, request.Amount, request.Note, request.CurrencyId),
             cancellationToken));
     }
 
@@ -84,4 +84,5 @@ public sealed class AdminOrdersController : ControllerBase
             cancellationToken));
 }
 
-public sealed record CreditWalletRequest(decimal Amount, string? Note);
+/// <param name="CurrencyId">Which balance to credit; the order's main currency when omitted.</param>
+public sealed record CreditWalletRequest(decimal Amount, string? Note, Guid? CurrencyId = null);

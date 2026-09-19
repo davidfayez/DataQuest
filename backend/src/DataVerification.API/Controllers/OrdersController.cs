@@ -186,7 +186,7 @@ public sealed record LoginOrderRequest(string OrderNumber, string Password);
 /// <param name="ContactPersonPhoneNumber">The national number, digits only, without the prefix.</param>
 public sealed record SetupOrderRequest(
     Guid VerificationCountryId,
-    Guid CurrencyId,
+    Guid? CurrencyId,
     string ContactPersonName,
     string ContactPersonPhoneCountry,
     string ContactPersonPhoneCode,

@@ -17,7 +17,8 @@ namespace DataVerification.Application.Features.Wallets.Commands;
 /// off by default, and the handler refuses outright rather than trusting the caller not to reach
 /// the endpoint. Never enable it in production.
 /// </remarks>
-public sealed record SimulateDepositCommand(decimal Amount) : IRequest<WalletSummaryDto>;
+/// <param name="CurrencyId">Which balance to top up; the order's main currency when omitted.</param>
+public sealed record SimulateDepositCommand(decimal Amount, Guid? CurrencyId = null) : IRequest<WalletSummaryDto>;
 
 public sealed class SimulateDepositCommandValidator : AbstractValidator<SimulateDepositCommand>
 {
@@ -39,12 +40,14 @@ public sealed class SimulateDepositCommandHandler : IRequestHandler<SimulateDepo
     private readonly ICurrentUser _currentUser;
     private readonly IAuditLogger _auditLogger;
     private readonly WalletOptions _options;
+    private readonly WalletBook _wallets;
 
     public SimulateDepositCommandHandler(
         IApplicationDbContext db,
         ICurrentUser currentUser,
         IAuditLogger auditLogger,
-        IOptions<WalletOptions> options)
+        IOptions<WalletOptions> options,
+        WalletBook wallets)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -52,6 +55,7 @@ public sealed class SimulateDepositCommandHandler : IRequestHandler<SimulateDepo
         _currentUser = currentUser;
         _auditLogger = auditLogger;
         _options = options.Value;
+        _wallets = wallets;
     }
 
     public async Task<WalletSummaryDto> Handle(
@@ -68,10 +72,7 @@ public sealed class SimulateDepositCommandHandler : IRequestHandler<SimulateDepo
         var orderId = _currentUser.OrderId
             ?? throw new ForbiddenAccessException("This endpoint is only available to applicants.");
 
-        var wallet = await _db.Wallets
-            .Include(w => w.Currency)
-            .FirstOrDefaultAsync(w => w.OrderId == orderId, cancellationToken)
-            ?? throw new NotFoundException("Wallet for order", orderId);
+        var wallet = await _wallets.OpenAsync(orderId, request.CurrencyId, cancellationToken);
 
         wallet.Credit(
             request.Amount,

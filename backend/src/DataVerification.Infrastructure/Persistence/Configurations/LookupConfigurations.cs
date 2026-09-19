@@ -77,6 +77,12 @@ public sealed class CountryCurrencyConfiguration : EntityConfigurationBase<Count
 
         // A currency may appear at most once per country.
         builder.HasIndex(cc => new { cc.CountryId, cc.CurrencyId }).IsUnique();
+
+        // And a country has at most one main currency.
+        builder.Property(cc => cc.IsDefault).HasDefaultValue(false);
+        builder.HasIndex(cc => cc.CountryId, "IX_CountryCurrencies_MainPerCountry")
+            .IsUnique()
+            .HasFilter("[IsDefault] = 1");
     }
 }
 
@@ -258,6 +264,9 @@ public sealed class ServiceTypeCostConfiguration : EntityConfigurationBase<Servi
     protected override void ConfigureEntity(EntityTypeBuilder<ServiceTypeCost> builder)
     {
         builder.ToTable("ServiceTypeCosts");
+
+        // Every price saved before this existed was on sale, so it starts active.
+        builder.Property(c => c.IsActive).HasDefaultValue(true);
         builder.Property(c => c.Cost).HasPrecision(18, 2);
         builder.Property(c => c.ExpressCost).HasPrecision(18, 2);
 
@@ -280,14 +289,50 @@ public sealed class ServiceTypeRequiredFileConfiguration
 {
     protected override void ConfigureLookup(EntityTypeBuilder<ServiceTypeRequiredFile> builder)
     {
-        builder.ToTable("ServiceTypeRequiredFiles");
+        // One owner, never both and never neither: a document belongs to a service type or to a
+        // payment method.
+        builder.ToTable("ServiceTypeRequiredFiles", table => table.HasCheckConstraint(
+            "CK_ServiceTypeRequiredFiles_SingleOwner",
+            "([ServiceTypeId] IS NOT NULL AND [PaymentMethodId] IS NULL) "
+            + "OR ([ServiceTypeId] IS NULL AND [PaymentMethodId] IS NOT NULL)"));
 
         builder.HasOne(f => f.ServiceType)
             .WithMany(s => s.RequiredFiles)
             .HasForeignKey(f => f.ServiceTypeId)
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(f => f.PaymentMethod)
+            .WithMany(m => m.RequiredFiles)
+            .HasForeignKey(f => f.PaymentMethodId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(f => f.ServiceTypeId);
+        builder.HasIndex(f => f.PaymentMethodId);
+    }
+}
+
+/// <summary>The reference files an administrator attaches to one required document.</summary>
+public sealed class RequiredFileSampleConfiguration : EntityConfigurationBase<RequiredFileSample>
+{
+    protected override void ConfigureEntity(EntityTypeBuilder<RequiredFileSample> builder)
+    {
+        builder.ToTable("RequiredFileSamples");
+
+        builder.Property(s => s.LabelAr).IsRequired().HasMaxLength(RequiredFileSampleLimits.MaxLabelLength);
+        builder.Property(s => s.LabelEn).IsRequired().HasMaxLength(RequiredFileSampleLimits.MaxLabelLength);
+        builder.Property(s => s.FileName).IsRequired().HasMaxLength(260);
+        builder.Property(s => s.StoragePath).IsRequired().HasMaxLength(500);
+        builder.Property(s => s.ContentType).IsRequired().HasMaxLength(200);
+
+        // The row goes with its document; the bytes are removed by the command that removes it.
+        builder.HasOne(s => s.RequiredFile)
+            .WithMany(f => f.Samples)
+            .HasForeignKey(s => s.RequiredFileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(s => new { s.RequiredFileId, s.SortOrder });
     }
 }
 

@@ -11,6 +11,7 @@ import {
   useTransactionTypes,
   type ServiceTypeDto,
 } from '@/features/lookups/api';
+import { useUploadRequiredFileSample } from '@/features/lookups/requiredFileSamples';
 import { ConfirmDialog } from '@/shared/ui/CrudDialog';
 import { DataTable } from '@/shared/ui/DataTable';
 import { formatNumber } from '@/shared/lib/format';
@@ -21,6 +22,11 @@ import {
   RequiredDocumentsEditor,
   type RequiredFileInput,
 } from './RequiredDocumentsEditor';
+import {
+  stripDocumentExtras,
+  toRequiredFileInput,
+  uploadPendingReferenceFiles,
+} from './requiredDocuments';
 import { LocalizedNameFields, LookupCodeField, isValidLookupCode, Notice, ParentFilter } from './shared';
 import { actionColumn, nameColumns, type LookupCaps } from './columns';
 
@@ -39,6 +45,8 @@ interface CostInput {
   currencyId: string;
   cost: string;
   expressCost: string;
+  /** Sold in this currency. Off keeps the price but stops offering the service to its orders. */
+  isActive: boolean;
 }
 
 interface ServiceTypeBody {
@@ -56,6 +64,8 @@ interface ServiceTypeBody {
   expressNoteEn: string;
   isActive: boolean;
   showOnLanding: boolean;
+  /** Keeps the description in the panel only; applicants are shown none. */
+  hideDescription: boolean;
   costs: CostInput[];
   requiredFiles: RequiredFileInput[];
   outputLanguages: string[];
@@ -63,7 +73,7 @@ interface ServiceTypeBody {
 
 /** What the API actually receives: the same shape with the amounts parsed. */
 type ServiceTypePayload = Omit<ServiceTypeBody, 'costs'> & {
-  costs: { currencyId: string; cost: number; expressCost: number }[];
+  costs: { currencyId: string; cost: number; expressCost: number; isActive: boolean }[];
 };
 
 const EMPTY: ServiceTypeBody = {
@@ -80,6 +90,7 @@ const EMPTY: ServiceTypeBody = {
   expressNoteEn: '',
   isActive: true,
   showOnLanding: true,
+  hideDescription: false,
   // Filled in from the currencies in scope once a sub-type is chosen.
   costs: [],
   requiredFiles: [],
@@ -116,46 +127,17 @@ export function ServiceTypesTab({ caps }: { caps: LookupCaps }) {
         expressNoteEn: tab.editing.expressNoteEn ?? '',
         isActive: tab.editing.isActive,
         showOnLanding: tab.editing.showOnLanding,
+        hideDescription: tab.editing.hideDescription ?? false,
         costs:
           tab.editing.costs?.length > 0
             ? tab.editing.costs.map((cost) => ({
                 currencyId: cost.currencyId,
                 cost: String(cost.cost),
                 expressCost: String(cost.expressCost),
+                isActive: cost.isActive ?? true,
               }))
             : [],
-        requiredFiles: tab.editing.requiredFiles.map((file) => ({
-          id: file.id,
-          nameAr: file.nameAr,
-          nameEn: file.nameEn,
-          isMandatory: file.isMandatory,
-          maxSizeBytes: file.maxSizeBytes,
-          maxFiles: file.maxFiles,
-          // Already resolved by the API, so a document saved before formats were configurable
-          // arrives carrying the platform default rather than an empty set.
-          allowedFileTypes: [...(file.allowedFileTypes ?? [])],
-          fields: (file.fields ?? []).map((field) => ({
-            id: field.id,
-            nameAr: field.nameAr,
-            nameEn: field.nameEn,
-            fieldType: field.fieldType,
-            isRequired: field.isRequired,
-            sortOrder: field.sortOrder,
-            minLength: field.minLength,
-            maxLength: field.maxLength,
-            pattern: field.pattern,
-            minValue: field.minValue,
-            maxValue: field.maxValue,
-            dateRule: field.dateRule,
-            minDate: field.minDate,
-            maxDate: field.maxDate,
-            options: field.options.map((option) => ({
-              value: option.value,
-              labelAr: option.labelAr,
-              labelEn: option.labelEn,
-            })),
-          })),
-        })),
+        requiredFiles: tab.editing.requiredFiles.map(toRequiredFileInput),
         outputLanguages: [...(tab.editing.outputLanguages ?? [])],
       });
     } else {
@@ -210,7 +192,8 @@ export function ServiceTypesTab({ caps }: { caps: LookupCaps }) {
 
       const inScope = currencyOptions.map(
         (currency) =>
-          byCurrency.get(currency.id) ?? { currencyId: currency.id, cost: '', expressCost: '' },
+          byCurrency.get(currency.id)
+          ?? { currencyId: currency.id, cost: '', expressCost: '', isActive: true },
       );
 
       const scopeIds = new Set(currencyOptions.map((currency) => currency.id));
@@ -232,11 +215,17 @@ export function ServiceTypesTab({ caps }: { caps: LookupCaps }) {
   const currencyName = (currencyId: string) =>
     currencies.data?.items.find((currency) => currency.id === currencyId);
 
-  /** Currencies still waiting for a price — what stands between the operator and saving. */
-  const unpriced = form.costs.filter((cost) => cost.cost.trim() === '');
+  /**
+   * Currencies still waiting for a price — what stands between the operator and saving. Only the
+   * ones the service is sold in: a switched-off currency needs no price.
+   */
+  const activeCosts = form.costs.filter((cost) => cost.isActive);
+  const unpriced = activeCosts.filter((cost) => cost.cost.trim() === '');
   const unpricedExpress = form.enableExpress
-    ? form.costs.filter((cost) => Number(cost.expressCost) <= 0)
+    ? activeCosts.filter((cost) => Number(cost.expressCost) <= 0)
     : [];
+  // Every currency off would leave a service nobody can buy — that is the service's own switch.
+  const noneActive = form.costs.length > 0 && activeCosts.length === 0;
 
   /**
    * Switching sub-type moves the service to a different transaction type, and therefore to a
@@ -258,6 +247,7 @@ export function ServiceTypesTab({ caps }: { caps: LookupCaps }) {
 
   const canSubmit =
     form.costs.length > 0
+    && !noneActive
     && unpriced.length === 0
     && unpricedExpress.length === 0
     // A service with no documents asks the applicant to upload nothing, and the review queue
@@ -265,20 +255,78 @@ export function ServiceTypesTab({ caps }: { caps: LookupCaps }) {
     && form.requiredFiles.length > 0
     && isValidLookupCode(form.code);
 
-  function handleSubmit(event: FormEvent) {
+  const uploadSample = useUploadRequiredFileSample();
+  const [isUploadingSamples, setIsUploadingSamples] = useState(false);
+  // Keyed to the service type it belongs to, so it is shown only while that one is open.
+  const [sampleFailure, setSampleFailure] = useState<{
+    serviceTypeId: string;
+    files: string[];
+  } | null>(null);
+
+  /**
+   * Saves the service type, then uploads the reference files chosen on documents that had no id
+   * yet. The form closes only once every file is stored; otherwise it stays open on the saved
+   * service type and says which files did not go up, so nothing is lost without a word.
+   */
+  async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || isUploadingSamples) return;
 
     // The amounts are held as text so an empty field stays distinct from a free service; the API
-    // takes numbers.
-    tab.submit({
+    // takes numbers. Reference files go through their own endpoint, never in this body.
+    const payload: ServiceTypePayload = {
       ...form,
       costs: form.costs.map((cost) => ({
         currencyId: cost.currencyId,
-        cost: Number(cost.cost),
-        expressCost: form.enableExpress ? Number(cost.expressCost) : 0,
+        // A switched-off currency may be left blank; it is stored as zero until it is sold again.
+        cost: Number(cost.cost) || 0,
+        expressCost: form.enableExpress ? Number(cost.expressCost) || 0 : 0,
+        isActive: cost.isActive,
+      })),
+      requiredFiles: stripDocumentExtras(form.requiredFiles),
+    };
+
+    const waiting = form.requiredFiles.filter((doc) => (doc.pendingSamples?.length ?? 0) > 0);
+    if (waiting.length === 0) {
+      tab.submit(payload);
+      return;
+    }
+
+    let saved: ServiceTypeDto;
+    try {
+      saved = await tab.save.mutateAsync(payload);
+    } catch {
+      // Shown by the form's own error alert.
+      return;
+    }
+
+    setIsUploadingSamples(true);
+
+    const { uploaded, failures } = await uploadPendingReferenceFiles(
+      form.requiredFiles,
+      saved.requiredFiles,
+      (input) => uploadSample.mutateAsync(input),
+      toMessage,
+    );
+
+    setIsUploadingSamples(false);
+
+    if (failures.length === 0) {
+      tab.closeDialog();
+      tab.setNotice(t('lookups.saved'));
+      return;
+    }
+
+    // Reopened on the saved row, carrying what did upload, so the rest can be added again there.
+    tab.setIsCreating(false);
+    tab.setEditing({
+      ...saved,
+      requiredFiles: saved.requiredFiles.map((file) => ({
+        ...file,
+        samples: [...(file.samples ?? []), ...(uploaded.get(file.id) ?? [])],
       })),
     });
+    setSampleFailure({ serviceTypeId: saved.id, files: failures });
   }
 
   // While creating or editing, the form takes over the whole tab as a full-width page rather
@@ -306,6 +354,12 @@ export function ServiceTypesTab({ caps }: { caps: LookupCaps }) {
           {tab.save.error ? (
             <Alert variant="error" title={t('errors.genericTitle')}>
               {toMessage(tab.save.error)}
+            </Alert>
+          ) : null}
+
+          {sampleFailure && sampleFailure.serviceTypeId === tab.editing?.id ? (
+            <Alert variant="warning" data-testid="sample-upload-failures">
+              {t('lookups.referenceDocsUploadFailed', { files: sampleFailure.files.join(', ') })}
             </Alert>
           ) : null}
 
@@ -379,6 +433,22 @@ export function ServiceTypesTab({ caps }: { caps: LookupCaps }) {
               />
             </Field>
           </div>
+
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 rounded border-border"
+              checked={form.hideDescription}
+              onChange={(event) => setForm({ ...form, hideDescription: event.target.checked })}
+              data-testid="hide-description"
+            />
+            <span>
+              <span className="block font-medium">{t('lookups.hideDescription')}</span>
+              <span className="block text-xs text-muted-foreground">
+                {t('lookups.hideDescriptionHint')}
+              </span>
+            </span>
+          </label>
 
           <Field label={t('lookups.executionTime')} htmlFor="executionTimeDays" required>
             <Input
@@ -538,8 +608,8 @@ export function ServiceTypesTab({ caps }: { caps: LookupCaps }) {
                   data-testid="cost-progress"
                 >
                   {t('lookups.costsPriced', {
-                    priced: form.costs.length - unpriced.length,
-                    total: form.costs.length,
+                    priced: activeCosts.length - unpriced.length,
+                    total: activeCosts.length,
                   })}
                 </span>
               )}
@@ -559,10 +629,11 @@ export function ServiceTypesTab({ caps }: { caps: LookupCaps }) {
               <div className="overflow-hidden rounded-lg border border-border">
                 {/* Column headings sit once above the rows rather than repeating per currency,
                     which is what turns this from a stack of forms into a price list. */}
-                <div className="hidden bg-muted/40 px-3 py-2 text-xs font-semibold text-muted-foreground sm:grid sm:grid-cols-[minmax(10rem,1fr)_1fr_1fr_2.5rem] sm:gap-3">
+                <div className="hidden bg-muted/40 px-3 py-2 text-xs font-semibold text-muted-foreground sm:grid sm:grid-cols-[minmax(10rem,1fr)_1fr_1fr_5.5rem_2.5rem] sm:gap-3">
                   <span>{t('lookups.currencies')}</span>
                   <span>{t('lookups.cost')}</span>
                   <span>{t('lookups.expressCost')}</span>
+                  <span className="text-center">{t('lookups.isActive')}</span>
                   <span />
                 </div>
 
@@ -570,14 +641,16 @@ export function ServiceTypesTab({ caps }: { caps: LookupCaps }) {
                   {form.costs.map((cost) => {
                     const currency = currencyName(cost.currencyId);
                     const inScope = currencyOptions.some((c) => c.id === cost.currencyId);
-                    const missing = cost.cost.trim() === '';
+                    const missing = cost.isActive && cost.cost.trim() === '';
 
                     return (
                       <div
                         key={cost.currencyId}
                         className={cn(
-                          'grid items-center gap-3 px-3 py-2 sm:grid-cols-[minmax(10rem,1fr)_1fr_1fr_2.5rem]',
+                          'grid items-center gap-3 px-3 py-2 sm:grid-cols-[minmax(10rem,1fr)_1fr_1fr_5.5rem_2.5rem]',
                           missing && 'bg-amber-50/60',
+                          // Kept editable — the price is kept — but visibly not on sale.
+                          !cost.isActive && 'bg-muted/40 text-muted-foreground',
                         )}
                         data-testid={`cost-row-${currency?.code ?? cost.currencyId}`}
                       >
@@ -616,13 +689,28 @@ export function ServiceTypesTab({ caps }: { caps: LookupCaps }) {
                           dir="ltr"
                           placeholder={form.enableExpress ? '0.00' : '—'}
                           disabled={!form.enableExpress}
-                          invalid={form.enableExpress && Number(cost.expressCost) <= 0}
+                          invalid={cost.isActive && form.enableExpress && Number(cost.expressCost) <= 0}
                           value={cost.expressCost}
                           onChange={(event) =>
                             patchCost(cost.currencyId, { expressCost: event.target.value })
                           }
                           data-testid={`express-${currency?.code ?? cost.currencyId}`}
                         />
+
+                        <label className="flex cursor-pointer items-center gap-2 text-sm sm:justify-center">
+                          <input
+                            type="checkbox"
+                            className="size-4 rounded border-border"
+                            checked={cost.isActive}
+                            onChange={(event) =>
+                              patchCost(cost.currencyId, { isActive: event.target.checked })
+                            }
+                            aria-label={`${t('lookups.isActive')} ${currency?.code ?? ''}`}
+                            data-testid={`cost-active-${currency?.code ?? cost.currencyId}`}
+                          />
+                          {/* The heading carries the word on wide screens; stacked rows need it here. */}
+                          <span className="sm:hidden">{t('lookups.isActive')}</span>
+                        </label>
 
                         {/* Only a price left over from a currency this service can no longer be
                             sold in may be removed; the rest are not the operator's to choose. */}
@@ -651,6 +739,12 @@ export function ServiceTypesTab({ caps }: { caps: LookupCaps }) {
                   })}
                 </div>
               </div>
+            )}
+
+            {noneActive && (
+              <Alert variant="warning" data-testid="costs-none-active">
+                {t('lookups.costsNoneActive')}
+              </Alert>
             )}
 
             {unpriced.length > 0 && (
@@ -687,10 +781,10 @@ export function ServiceTypesTab({ caps }: { caps: LookupCaps }) {
                 does not fail loudly later, it quietly stops appearing for those applicants. */}
             <Button
               type="submit"
-              disabled={tab.save.isPending || !canSubmit}
+              disabled={tab.save.isPending || isUploadingSamples || !canSubmit}
               data-testid="dialog-submit"
             >
-              {tab.save.isPending && <Spinner />}
+              {(tab.save.isPending || isUploadingSamples) && <Spinner />}
               {t('common.save')}
             </Button>
           </div>
@@ -752,7 +846,11 @@ export function ServiceTypesTab({ caps }: { caps: LookupCaps }) {
                   {row.costs.map((cost) => (
                     <span
                       key={cost.currencyId}
-                      className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground"
+                      className={cn(
+                        'rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground',
+                        cost.isActive === false && 'line-through opacity-60',
+                      )}
+                      title={cost.isActive === false ? t('lookups.costInactive') : undefined}
                     >
                       {cost.currencyCode ?? '?'}: {formatNumber(cost.cost, locale)}
                     </span>
